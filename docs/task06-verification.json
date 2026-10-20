@@ -1,0 +1,2 @@
+{"database" : "myrag", "flyway" : [{"version" : "1", "success" : true}, {"version" : "2", "success" : true}, {"version" : "3", "success" : true}, {"version" : "4", "success" : true}, {"version" : "5", "success" : true}], "daily_by_adjustment" : [{"adjustment":"NONE","rows":432}, 
+ {"adjustment":"QFQ","rows":432}], "calendar_rows" : 0, "close_confirmation_rows" : 0, "job_rows" : 0, "job_item_rows" : 0, "indicator_rows" : 0, "signal_rows" : 0, "notification_rows" : 0, "advice_rows" : 0}

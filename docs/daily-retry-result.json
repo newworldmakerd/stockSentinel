@@ -1,0 +1,9 @@
+{
+  "status": "FAILED",
+  "symbol": "600487",
+  "adjustment": "QFQ",
+  "catalog": {
+    "skipped": "existing catalog preserved"
+  },
+  "failure_type": "RuntimeError"
+}

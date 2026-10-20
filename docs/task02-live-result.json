@@ -1,0 +1,23 @@
+{
+  "status": "PARTIAL",
+  "catalog_written": 5575,
+  "symbol": "600487",
+  "start": "2025-01-01",
+  "end": "2026-10-19",
+  "adjustment": "QFQ",
+  "daily_rows_written": 0,
+  "failure": "Upstream ConnectionError / RemoteDisconnected, reproduced outside sandbox",
+  "temporary_services_stopped": true,
+  "model_called": false,
+  "wecom_called": false,
+  "catalog_by_exchange": {
+    "SH": 2318,
+    "SZ": 2906,
+    "BJ": 351
+  },
+  "fixture_rows_remaining": 0,
+  "signal_rows": 0,
+  "advice_rows": 0,
+  "final_java_tests_passed": 19,
+  "python_tests_passed": 18
+}

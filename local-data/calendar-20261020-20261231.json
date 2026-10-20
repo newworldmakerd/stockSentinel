@@ -1,0 +1,367 @@
+[
+  {
+    "tradeDate": "2026-10-20",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-21",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-22",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-23",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-24",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-25",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-26",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-27",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-28",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-29",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-30",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-10-31",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-01",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-02",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-03",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-04",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-05",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-06",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-07",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-08",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-09",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-10",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-11",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-12",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-13",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-14",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-15",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-16",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-17",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-18",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-19",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-20",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-21",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-22",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-23",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-24",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-25",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-26",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-27",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-28",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-29",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-11-30",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-01",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-02",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-03",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-04",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-05",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-06",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-07",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-08",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-09",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-10",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-11",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-12",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-13",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-14",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-15",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-16",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-17",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-18",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-19",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-20",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-21",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-22",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-23",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-24",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-25",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-26",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-27",
+    "isOpen": false,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-28",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-29",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-30",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  },
+  {
+    "tradeDate": "2026-12-31",
+    "isOpen": true,
+    "source": "SSE_SZSE_2026"
+  }
+]

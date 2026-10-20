@@ -1,0 +1,39 @@
+{
+  "verifiedAt": "2026-10-20T16:21:16.075205+08:00",
+  "runtime": {
+    "wecomConnection": "AUTHENTICATED",
+    "scheduleEnabled": true,
+    "intradayEnabled": true,
+    "groupCommandsEnabled": true
+  },
+  "backendDatabaseHealth": "UP",
+  "minuteSource": [
+    {
+      "symbol": "000731",
+      "status": "FAILED",
+      "httpStatus": 502,
+      "detail": "Minute provider unavailable or invalid"
+    },
+    {
+      "symbol": "600487",
+      "status": "FAILED",
+      "httpStatus": 502,
+      "detail": "Minute provider unavailable or invalid"
+    }
+  ],
+  "javaUnitTests": 74,
+  "javaDatabaseIntegrationTests": 55,
+  "pythonTests": 52,
+  "liveModelToolCalling": "PASS",
+  "liveGroupCallback": "WAITING_FOR_USER_GROUP_MESSAGE",
+  "calendarCoverage": [
+    "2026-10-20",
+    "2026-12-31"
+  ],
+  "enabledSymbols": [
+    "000731",
+    "600487"
+  ],
+  "stockAdvisoryAutoEnabled": false,
+  "sourceMirrorEnabled": true
+}

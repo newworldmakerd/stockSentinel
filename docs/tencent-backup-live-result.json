@@ -1,0 +1,55 @@
+{
+  "verifiedAt": "2026-10-20T17:37:32.109541+08:00",
+  "minuteResults": [
+    {
+      "symbol": "000731",
+      "status": "OK",
+      "source": "TENCENT_1M",
+      "barCount": 21,
+      "lastBarAt": "2026-10-20T15:00:00+08:00",
+      "volumeUnit": "SHARE",
+      "amountMissing": true,
+      "metrics": {
+        "five_minute_return_pct": "0.136986301369863013698630100",
+        "previous_twenty_high": "7.30",
+        "previous_twenty_volume_mean": "31975.00"
+      }
+    },
+    {
+      "symbol": "600487",
+      "status": "OK",
+      "source": "TENCENT_1M",
+      "barCount": 21,
+      "lastBarAt": "2026-10-20T15:00:00+08:00",
+      "volumeUnit": "SHARE",
+      "amountMissing": true,
+      "metrics": {
+        "five_minute_return_pct": "0.019208605455243949289281600",
+        "previous_twenty_high": "52.12",
+        "previous_twenty_volume_mean": "628815.00"
+      }
+    }
+  ],
+  "runtime": {
+    "groupCommandsEnabled": true,
+    "intradayEnabled": true,
+    "scheduleEnabled": true,
+    "wecomConnection": "AUTHENTICATED"
+  },
+  "afterCloseScan": {
+    "jobId": 2,
+    "status": "SKIPPED",
+    "processed": 0,
+    "signals": 0,
+    "failed": 0,
+    "skipped": 0,
+    "code": "OUTSIDE_SESSION"
+  },
+  "tests": {
+    "javaUnit": 75,
+    "javaPostgresIntegration": 56,
+    "python": 64
+  },
+  "runtimeDirectory": ".runtime/20261020-173702-397789",
+  "completeLiveSessionSignalVerified": false
+}

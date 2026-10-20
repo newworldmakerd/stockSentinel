@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stocksentinel}
+      POSTGRES_USER: ${POSTGRES_USER:-stocksentinel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  quant:
+    build: ../quant-service
+    environment:
+      MARKET_PROVIDER_ENABLED: ${MARKET_PROVIDER_ENABLED:-false}
+    ports:
+      - "127.0.0.1:${PYTHON_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+  backend:
+    build: ../backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-stocksentinel}
+      POSTGRES_USER: ${POSTGRES_USER:-stocksentinel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      PYTHON_URL: http://quant:8000
+      MARKET_ENABLED: ${MARKET_ENABLED:-false}
+      JOBS_ENABLED: ${JOBS_ENABLED:-false}
+      DAILY_SCAN_SCHEDULE_ENABLED: ${DAILY_SCAN_SCHEDULE_ENABLED:-false}
+      INTRADAY_ENABLED: ${INTRADAY_ENABLED:-false}
+      INTRADAY_SCHEDULE_ENABLED: ${INTRADAY_SCHEDULE_ENABLED:-false}
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-${DEEPSEEK_API_KEY:-}}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      WECOM_ENABLED: ${WECOM_ENABLED:-false}
+      WECOM_MODE: ${WECOM_MODE:-SMART_BOT}
+      WECOM_BOT_ID: ${WECOM_BOT_ID:-}
+      WECOM_BOT_SECRET: ${WECOM_BOT_SECRET:-}
+      WECOM_CHAT_ID: ${WECOM_CHAT_ID:-}
+    ports:
+      - "127.0.0.1:${JAVA_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      quant:
+        condition: service_healthy
+volumes:
+  postgres_data:

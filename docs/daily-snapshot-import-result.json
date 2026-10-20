@@ -1,0 +1,41 @@
+{
+  "source": "previously fetched real AKShare snapshots",
+  "model_called": false,
+  "wecom_called": false,
+  "series": {
+    "QFQ": {
+      "first_import": {
+        "received": 432,
+        "written": 432,
+        "skipped": 0,
+        "historySufficient": true
+      },
+      "repeat_import": {
+        "received": 432,
+        "written": 432,
+        "skipped": 0,
+        "historySufficient": true
+      },
+      "database_rows": 432,
+      "earliest": "2025-01-02",
+      "latest": "2026-10-19"
+    },
+    "NONE": {
+      "first_import": {
+        "received": 432,
+        "written": 432,
+        "skipped": 0,
+        "historySufficient": true
+      },
+      "repeat_import": {
+        "received": 432,
+        "written": 432,
+        "skipped": 0,
+        "historySufficient": true
+      },
+      "database_rows": 432,
+      "earliest": "2025-01-02",
+      "latest": "2026-10-19"
+    }
+  }
+}

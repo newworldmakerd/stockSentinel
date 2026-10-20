@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: stocksentinel
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/stocksentinel}
+    username: ${POSTGRES_USER:stocksentinel}
+    password: ${POSTGRES_PASSWORD}
+  flyway:
+    enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+llm:
+  enabled: ${LLM_ENABLED:false}
+  base-url: ${LLM_BASE_URL:}
+  api-key: ${LLM_API_KEY:${DEEPSEEK_API_KEY:}}
+  model: ${LLM_MODEL:}
+  timeout-seconds: ${LLM_TIMEOUT_SECONDS:30}
+
+market:
+  enabled: ${MARKET_ENABLED:false}
+  python-url: ${PYTHON_URL:http://127.0.0.1:8000}
+  minute-timeout-seconds: ${MINUTE_HTTP_TIMEOUT_SECONDS:25}
+
+wecom:
+  enabled: ${WECOM_ENABLED:false}
+  mode: ${WECOM_MODE:SMART_BOT}
+  bot-id: ${WECOM_BOT_ID:}
+  bot-secret: ${WECOM_BOT_SECRET:}
+  chat-id: ${WECOM_CHAT_ID:}
+  commands:
+    enabled: ${WECOM_COMMANDS_ENABLED:false}
+    base-url: ${WECOM_COMMANDS_BASE_URL:https://api.deepseek.com}
+    model: ${WECOM_COMMANDS_MODEL:deepseek-flash}
+
+jobs:
+  enabled: ${JOBS_ENABLED:false}
+  schedule-enabled: ${DAILY_SCAN_SCHEDULE_ENABLED:false}
+
+intraday:
+  enabled: ${INTRADAY_ENABLED:false}
+  schedule-enabled: ${INTRADAY_SCHEDULE_ENABLED:false}
+
+reports:
+  enabled: ${DAILY_REPORT_ENABLED:false}
+  schedule-enabled: ${DAILY_REPORT_SCHEDULE_ENABLED:false}
+  worker-enabled: ${DAILY_REPORT_WORKER_ENABLED:true}
+screening:
+  enabled: ${SCREENING_ENABLED:false}
+  llm-enabled: ${SCREENING_LLM_ENABLED:false}

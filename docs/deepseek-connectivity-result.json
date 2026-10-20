@@ -1,0 +1,19 @@
+{
+  "http_status": 200,
+  "requested_model": "deepseek-flash",
+  "response_model": "deepseek-flash",
+  "finish_reason": "stop",
+  "json_validated": true,
+  "usage": {
+    "prompt_tokens": 54,
+    "completion_tokens": 5,
+    "total_tokens": 59,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "prompt_cache_hit_tokens": 0,
+    "prompt_cache_miss_tokens": 54
+  },
+  "stock_advice_generated": false,
+  "wecom_called": false
+}

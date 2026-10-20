@@ -1,0 +1,2 @@
+Compared 91 columns, 23 PK/UNIQUE/FK constraints and 3 explicit indexes across 10 tables.
+MATCH: existing public core schema agrees with V1.
