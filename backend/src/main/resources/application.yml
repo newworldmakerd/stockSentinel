@@ -13,6 +13,9 @@ chips:
   concentration90: ${CHIPS_CONCENTRATION90:0.10}
   concentration70: ${CHIPS_CONCENTRATION70:0.06}
   minimum-amount: ${CHIPS_MINIMUM_AMOUNT:100000000}
+custom-strategies:
+  enabled: ${CUSTOM_STRATEGIES_ENABLED:false}
+  notifications-enabled: ${CUSTOM_STRATEGY_NOTIFICATIONS_ENABLED:false}
 management:
   endpoints:
     web:
