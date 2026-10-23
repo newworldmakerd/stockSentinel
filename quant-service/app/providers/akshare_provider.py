@@ -5,11 +5,20 @@ from threading import Lock
 import os
 import time
 import requests
+import logging
 
 from app.providers.base import Adjustment, DailyBar, StockMetadata
+from app.providers.minute_failure import failure_code, MinuteDataError
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderDataError(ValueError):
+    pass
+
+
+class MinuteMirrorDataError(MinuteDataError, ProviderDataError):
+    """Keep the mirror's existing ProviderDataError contract with a safe diagnosis."""
     pass
 
 
@@ -20,6 +29,10 @@ class AkshareProvider:
         self._today = today or (lambda: datetime.now(ZoneInfo("Asia/Shanghai")).date())
         self._lock = Lock()
         self._last_call = 0.0
+        self._daily_gate = Lock()
+        self._daily_failures = 0
+        self._daily_retry_at = 0.0
+        self._daily_probe = False
 
     def _call(self, name, **kwargs):
         with self._lock:
@@ -31,13 +44,20 @@ class AkshareProvider:
                 time.sleep(wait)
             try:
                 return getattr(self._sdk, name)(**kwargs)
-            except (requests.ConnectionError, requests.Timeout):
+            except (requests.ConnectionError, requests.Timeout) as primary_error:
                 # Explicit opt-in, same vendor/schema/units; no change to daily APIs.
                 if (name != "stock_zh_a_hist_min_em" or kwargs.get("period") != "1"
                         or kwargs.get("adjust") != "" or os.getenv("MARKET_MINUTE_MIRROR_ENABLED", "false").lower() != "true"):
                     raise
                 time.sleep(1)
-                return self._minute_mirror(**kwargs)
+                try:
+                    result = self._minute_mirror(**kwargs)
+                except Exception as mirror_error:
+                    logger.warning("minute_mirror symbol=%s primary=%s mirror=%s", kwargs.get("symbol"),
+                        failure_code(primary_error), failure_code(mirror_error))
+                    raise
+                logger.warning("minute_mirror symbol=%s primary=%s mirror=SUCCESS", kwargs.get("symbol"), failure_code(primary_error))
+                return result
             finally:
                 self._last_call = time.monotonic()
 
@@ -53,10 +73,10 @@ class AkshareProvider:
         response.raise_for_status()
         data = response.json().get("data")
         if not isinstance(data, dict) or data.get("code") != symbol or data.get("market") != market or not data.get("trends"):
-            raise ProviderDataError("Invalid minute mirror metadata")
+            raise MinuteMirrorDataError("DATA_IDENTITY", field="identity")
         rows = [item.split(",") for item in data["trends"]]
         if any(len(row) != 8 for row in rows):
-            raise ProviderDataError("Invalid minute mirror rows")
+            raise MinuteMirrorDataError("DATA_SHAPE", field="rows")
         frame = pd.DataFrame(rows, columns=["时间", "开盘", "收盘", "最高", "最低", "成交量", "成交额", "均价"])
         stamps = pd.to_datetime(frame["时间"], errors="raise")
         frame = frame[(stamps >= pd.Timestamp(start_date)) & (stamps <= pd.Timestamp(end_date))].copy()
@@ -85,6 +105,34 @@ class AkshareProvider:
         return sorted(result.values(), key=lambda item: item.symbol)
 
     def daily_bars(self, symbol: str, start: date, end: date, adjustment: Adjustment):
+        backup = os.getenv("MARKET_TENCENT_DAILY_BACKUP_ENABLED", "false").lower() == "true"
+        if not backup:
+            return self._eastmoney_daily(symbol, start, end, adjustment)
+        with self._daily_gate:
+            probe = not self._daily_probe and time.monotonic() >= self._daily_retry_at
+            if probe:
+                self._daily_probe = True
+        if probe:
+            try:
+                result = self._eastmoney_daily(symbol, start, end, adjustment)
+                if not result:
+                    raise ProviderDataError("Empty primary history")
+                with self._daily_gate:
+                    self._daily_failures = 0
+                    self._daily_retry_at = 0
+                return result
+            except Exception:
+                with self._daily_gate:
+                    self._daily_failures += 1
+                    if self._daily_failures >= 3:
+                        self._daily_retry_at = time.monotonic()+300
+            finally:
+                with self._daily_gate:
+                    self._daily_probe = False
+        from app.providers.tencent_daily import get_tencent_daily
+        return get_tencent_daily().daily_bars(symbol, start, end, adjustment, self._today())
+
+    def _eastmoney_daily(self, symbol: str, start: date, end: date, adjustment: Adjustment):
         frame = self._call("stock_zh_a_hist", symbol=symbol, period="daily",
                            start_date=start.strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"),
                            adjust={Adjustment.NONE: "", Adjustment.QFQ: "qfq", Adjustment.HFQ: "hfq"}[adjustment],

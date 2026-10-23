@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** One synchronous bounded scan; external calls never run in a database transaction. */
 @Service
 public class DailyScanService {
+    @org.springframework.beans.factory.annotation.Autowired private com.stocksentinel.monitoring.ScanTelemetry telemetry;
     private final JobMapper jobs;
     private final TradingDatePolicy dates;
     private final MarketCollectionService market;
@@ -69,7 +70,8 @@ public class DailyScanService {
                             skipped++;jobs.item(job.id,stock.symbol,stage,"SKIPPED","CURRENT_FINAL_BAR_MISSING");continue;
                         }
                         stage="INDICATORS";indicators.calculate(stock.symbol,params.adjustment(),date);
-                        stage="STRATEGY";var result=evaluation.evaluate(StrategyDefinitionService.CODE,stock.symbol,date);
+                        stage="STRATEGY";var result=evaluation.evaluateWatched(StrategyDefinitionService.CODE,stock.symbol,date);
+                        if(telemetry!=null&&result.signals()!=null)result.signals().stream().filter(com.stocksentinel.signal.SignalWriter.Saved::created).forEach(s->telemetry.link(job.id,s.id()));
                         if("SKIPPED".equals(result.status())) {
                             skipped++;jobs.item(job.id,stock.symbol,stage,"SKIPPED",result.reason());
                         } else {

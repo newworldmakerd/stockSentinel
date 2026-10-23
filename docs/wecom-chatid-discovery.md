@@ -1,5 +1,23 @@
 # 企微群 chatid 发现模式
 
+## Windows终端写法
+
+先确认终端类型。同一个机器人正在连接主服务时，先暂停该Java服务，发现结束后再恢复；发现工具不会替你停止其他进程。
+
+CMD（命令提示符）使用双引号，不加PowerShell的调用符号：
+
+```cmd
+"C:\Program Files\Java\jdk-21.0.10\bin\java.exe" -jar "D:\lyh\code\AIDemo\stockSentinel\backend\target\stocksentinel-0.1.0-SNAPSHOT.jar" --discover-wecom-chatid
+```
+
+PowerShell使用调用符号：
+
+```powershell
+& 'C:\Program Files\Java\jdk-21.0.10\bin\java.exe' -jar backend/target/stocksentinel-0.1.0-SNAPSHOT.jar --discover-wecom-chatid
+```
+
+两种写法均要求当前终端的环境中已有WECOM_BOT_ID和WECOM_BOT_SECRET；不把凭据直接写进命令或文档。等待鉴权成功后，在目标新群中@机器人发消息，控制台显示chatid后退出。
+
 已补齐独立命令行入口 `--discover-wecom-chatid`，用于第一次配置群通知时获取目标群chatid。无需预先配置WECOM_CHAT_ID，不启动Spring、数据库、Flyway、Python、模型或通知worker，无数据库变更。
 
 ## 操作步骤

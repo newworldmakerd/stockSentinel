@@ -1,0 +1,47 @@
+{
+  "checkedAt": "2026-10-21T10:07:06.735573+08:00",
+  "recommendations": {
+    "enabled": true,
+    "intervalMinutes": 10,
+    "timezone": "Asia/Shanghai",
+    "maxCandidates": 5,
+    "slots": "09:40–11:30、13:10–15:00，每10分钟"
+  },
+  "pool": [
+    {
+      "symbol": "000498",
+      "name": "山东路桥",
+      "dataDate": "2026-10-20",
+      "referenceHigh": 6.51,
+      "triggeredAt": null
+    }
+  ],
+  "screening": {
+    "status": "RUNNING",
+    "total": 5224,
+    "coverage": [
+      {
+        "count": 96,
+        "status": "EXCLUDED"
+      },
+      {
+        "count": 144,
+        "status": "NO_MATCH"
+      },
+      {
+        "count": 4984,
+        "status": "PENDING"
+      }
+    ]
+  },
+  "tests": {
+    "javaUnit": 96,
+    "javaNative": 66
+  },
+  "monitoring": {
+    "intradayEnabled": true,
+    "scheduleEnabled": true,
+    "wecomConnection": "AUTHENTICATED",
+    "groupCommandsEnabled": true
+  }
+}

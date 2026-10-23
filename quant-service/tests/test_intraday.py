@@ -54,7 +54,7 @@ def test_lunch_gap_never_becomes_five_or_twenty_minute_window():
 def test_invalid_data_is_rejected(kind):
     data = frame()
     if kind == "duplicate": data.loc[20, "时间"] = data.loc[19, "时间"]
-    if kind == "future": data.loc[20, "时间"] = datetime(2026, 10, 20, 10, 22)
+    if kind == "future": data.loc[20, "时间"] = datetime(2026, 10, 20, 10, 23)
     if kind == "yesterday": data.loc[0, "时间"] -= timedelta(days=1)
     if kind == "bad_ohlc": data.loc[20, "最高"] = 1
     if kind == "negative_volume": data.loc[20, "成交量"] = -1
@@ -78,6 +78,29 @@ def test_api_calls_only_one_minute_unadjusted_provider_and_sanitizes_failure():
         result = client.get("/internal/market/minutes?symbol=600487")
         assert result.status_code == 502
         assert "private-provider-error" not in result.text
+    finally:
+        app.dependency_overrides.pop(get_provider, None)
+        app.dependency_overrides.pop(minute_clock, None)
+
+
+def test_primary_fetch_crossing_minute_uses_completion_time(monkeypatch):
+    # A request starts at 10:21:59 and completes at 10:22:02. The newly returned
+    # 10:22 row is in progress and must be excluded, not reject the entire window.
+    provider = Mock()
+    data = frame()
+    data.loc[len(data)] = {**data.iloc[-1].to_dict(), "时间": datetime(2026, 10, 20, 10, 22)}
+    provider._call.return_value = data
+    started = NOW.replace(second=59)
+    ticks = iter([100.0, 103.0])
+    from types import SimpleNamespace
+    monkeypatch.setattr("app.api.intraday.elapsed_time", SimpleNamespace(monotonic=lambda: next(ticks)))
+    app.dependency_overrides[get_provider] = lambda: provider
+    app.dependency_overrides[minute_clock] = lambda: started
+    try:
+        result = TestClient(app).get("/internal/market/minutes?symbol=600487")
+        assert result.status_code == 200
+        assert result.json()["observed_at"].startswith("2026-10-20T10:22:02")
+        assert all(bar["bar_at"] < "2026-10-20T10:22:00" for bar in result.json()["bars"])
     finally:
         app.dependency_overrides.pop(get_provider, None)
         app.dependency_overrides.pop(minute_clock, None)

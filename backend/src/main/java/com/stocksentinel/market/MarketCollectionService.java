@@ -68,6 +68,17 @@ public class MarketCollectionService {
                     bar.volume(),bar.amount(),bar.turnoverRate(),bar.adjustment(),bar.source(),true);
             return bar;
         }).filter(Bar::isFinal).toList();
+        var priorSources=mapper.sourceHistory(symbol,adjustment);
+        if(!finalBars.isEmpty() && (finalBars.stream().anyMatch(b->"AKSHARE_TENCENT_DAILY".equals(b.source()))
+                || priorSources.stream().anyMatch(b->"AKSHARE_TENCENT_DAILY".equals(b.source)))) {
+            var incomingDates=finalBars.stream().map(Bar::tradeDate).collect(java.util.stream.Collectors.toSet());
+            var targetSource=finalBars.getFirst().source();
+            if(finalBars.stream().anyMatch(b->!targetSource.equals(b.source()))) throw invalidUpstream();
+            for(var old:priorSources) {
+                if(!targetSource.equals(old.source) && !incomingDates.contains(old.tradeDate))
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,"INCOMPLETE_SOURCE_REPLACEMENT");
+            }
+        }
         int written=writer.bars(finalBars);
         return new ImportResult(data.bars().size(),written,data.bars().size()-finalBars.size(),finalBars.size()>=120);
     }

@@ -1,0 +1,66 @@
+{
+  "checkedAt": "2026-10-21T09:58:46.102081+08:00",
+  "monitoring": {
+    "groupCommandsEnabled": true,
+    "intradayEnabled": true,
+    "scheduleEnabled": true,
+    "wecomConnection": "AUTHENTICATED"
+  },
+  "screening": {
+    "coverage": [
+      {
+        "count": 23,
+        "status": "EXCLUDED"
+      },
+      {
+        "count": 47,
+        "status": "NO_MATCH"
+      },
+      {
+        "count": 5154,
+        "status": "PENDING"
+      }
+    ],
+    "asOf": "2026-10-20",
+    "total": 5224,
+    "status": "RUNNING",
+    "candidates": [],
+    "tradeDate": "2026-10-21"
+  },
+  "pullback": {
+    "pool": [],
+    "parameters": {
+      "enabled": true,
+      "risePct": 15,
+      "minDays": 2,
+      "maxDays": 5,
+      "minDrawdownPct": 3,
+      "maxDrawdownPct": 8,
+      "contraction": 0.7,
+      "minuteMultiplier": 1.5,
+      "poolLimit": 20
+    },
+    "version": "1.0.0-f667ea5af00115eb"
+  },
+  "tencentDailyLiveChecks": [
+    {
+      "symbol": "000731",
+      "source": "AKSHARE_TENCENT_DAILY",
+      "bars": 243,
+      "through": "2026-10-20"
+    },
+    {
+      "symbol": "600487",
+      "source": "AKSHARE_TENCENT_DAILY",
+      "bars": 243,
+      "through": "2026-10-20"
+    }
+  ],
+  "modelCheck": {
+    "signalId": 2,
+    "symbol": "600487",
+    "model": "deepseek-flash",
+    "status": "SUCCESS",
+    "sentHistoricalMessageAgain": false
+  }
+}

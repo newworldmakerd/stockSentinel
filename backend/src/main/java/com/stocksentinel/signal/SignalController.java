@@ -22,7 +22,7 @@ public class SignalController {
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required=false) String type,@RequestParam(defaultValue="100") int limit,@RequestParam(defaultValue="0") int offset) {
         if (symbol!=null) WatchlistService.symbol(symbol);
-        if(type!=null && !java.util.Set.of("BUY_WATCH","SELL_WATCH","RISK_ALERT","RAPID_RISE","RAPID_DROP","BREAKOUT_WATCH","TAKE_PROFIT","STOP_LOSS").contains(type))
+        if(type!=null && !java.util.Set.of("PULLBACK_STRENGTH","BUY_WATCH","SELL_WATCH","RISK_ALERT","RAPID_RISE","RAPID_DROP","BREAKOUT_WATCH","TAKE_PROFIT","STOP_LOSS").contains(type))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"INVALID_SIGNAL_TYPE");
         if (limit<1 || limit>200 || offset<0 || (from!=null && to!=null && from.isAfter(to)))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"INVALID_SIGNAL_QUERY");

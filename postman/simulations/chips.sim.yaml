@@ -1,0 +1,7 @@
+simulation: chip-concentration
+routing: path
+mocks:
+  - routeKey: east
+    path: ../mocks/chip-east/east.js
+  - routeKey: quant
+    path: ../mocks/chip-quant/quant.js

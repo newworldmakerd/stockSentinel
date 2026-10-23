@@ -26,7 +26,10 @@ public class StrategyEvaluationService {
         this.definitions=definitions; this.reader=reader; this.engine=engine; this.writer=writer;
         this.dates=dates;
     }
-    public Result evaluate(String code,String symbol,LocalDate date) {
+    /** Daily-job path rechecks subscription at signal commit; manual evaluation stays unchanged. */
+    public Result evaluateWatched(String code,String symbol,LocalDate date) {return evaluateInternal(code,symbol,date,true);}
+    public Result evaluate(String code,String symbol,LocalDate date) {return evaluateInternal(code,symbol,date,false);}
+    private Result evaluateInternal(String code,String symbol,LocalDate date,boolean requireWatch) {
         WatchlistService.symbol(symbol);
         var definition=definitions.current(code);
         var parameters=definitions.parameters(definition.parameters);
@@ -41,7 +44,9 @@ public class StrategyEvaluationService {
         var decisions=engine.evaluate(context.context());
         if (decisions.stream().noneMatch(SwingTrendStrategy.Decision::matched))
             return new Result("NO_SIGNAL","NO_RULE_GROUP_MATCHED",code,definition.version,decisions,List.of());
-        var saved=writer.save(definition,context,decisions);
+        List<SignalWriter.Saved> saved;
+        try {saved=requireWatch?writer.saveWatched(definition,context,decisions):writer.save(definition,context,decisions);}
+        catch(SignalWriter.WatchRemoved removed){return new Result("SKIPPED","WATCH_REMOVED_OR_DISABLED",code,definition.version,decisions,List.of());}
         return new Result(saved.stream().anyMatch(SignalWriter.Saved::created) ? "GENERATED" : "ALREADY_EXISTS",
             "RULES_EVALUATED",code,definition.version,decisions,saved);
     }

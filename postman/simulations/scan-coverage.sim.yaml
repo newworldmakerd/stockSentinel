@@ -1,0 +1,5 @@
+simulation: scan-coverage-failure
+routing: path
+mocks:
+  - routeKey: quant
+    path: ../mocks/trend-quotes-failure/quant.js

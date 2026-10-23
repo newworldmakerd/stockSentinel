@@ -56,4 +56,26 @@ class AdvisoryTest {
     @Test void invalidAdviceIsRejected() {
         assertThrows(IllegalArgumentException.class, () -> new Advice("", List.of(), List.of(), ""));
     }
+    @Test void modelAndAuditReceiveShanghaiTimesWithoutChangingInstant() throws Exception {
+        var client = mock(AdvisoryClient.class);
+        var store = mock(AdviceStore.class);
+        var json = new ObjectMapper();
+        when(store.loadVerifiedSignal(21)).thenReturn("""
+            {"signal":{"signal_at":"2026-10-22T09:35:00+08:00","trade_date":"2026-10-22",
+            "details":{"snapshot":{"bars":[{"bar_at":"2026-10-22T01:35:00Z","close_price":20.3},
+            {"bar_at":"2026-10-21T16:01:00Z"}],"observed_at":"2026-10-22T01:36:12.123Z"}}}}
+            """);
+        when(client.analyze(anyString())).thenReturn(new Advice("等待",List.of("规则"),List.of("延迟"),"失效"));
+        var service = new SignalAdvisoryService(provider(client),store,json,"test");
+        assertEquals(SignalAdvisoryService.Status.SUCCESS,service.analyze(21));
+        var captured = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(client).analyze(captured.capture());
+        var input=json.readTree(captured.getValue());
+        assertEquals("2026-10-22T09:35+08:00",input.at("/signal/details/snapshot/bars/0/bar_at").asText());
+        assertEquals("2026-10-22T00:01+08:00",input.at("/signal/details/snapshot/bars/1/bar_at").asText());
+        assertEquals("2026-10-22T09:36:12.123+08:00",input.at("/signal/details/snapshot/observed_at").asText());
+        assertEquals("2026-10-22",input.at("/signal/trade_date").asText());
+        assertEquals(20.3,input.at("/signal/details/snapshot/bars/0/close_price").asDouble());
+        verify(store).save(eq(21L),eq("test"),anyString(),eq("SUCCESS"),eq(captured.getValue()),anyString(),isNull());
+    }
 }

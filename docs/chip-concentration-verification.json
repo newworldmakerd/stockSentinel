@@ -1,0 +1,35 @@
+{
+  "status": "SIMULATION_VERIFIED_NOT_DEPLOYED",
+  "strategy": "CHIP_CONCENTRATION_V1",
+  "migration": "V24",
+  "parameters": {
+    "concentration90": "0.10",
+    "concentration70": "0.06",
+    "minimumAverage20AmountCny": "100000000",
+    "minimumHistoryRows": 120,
+    "maximumCandidates": 5
+  },
+  "checks": {
+    "javaUnitPassed": 176,
+    "pythonPassed": 158,
+    "isolatedDatabasePassed": 158,
+    "isolatedDatabaseSimulationTestsSkipped": 2,
+    "postmanChipAcceptancePassed": 1
+  },
+  "evidence": {
+    "java": ".runtime/chips-unit.log",
+    "python": ".runtime/chips-python.log",
+    "database": ".runtime/chips-native-final.log",
+    "postman": ".runtime/chips-postman-20261023-134226-775805/result.json"
+  },
+  "realChipMarketCalls": false,
+  "testWecomMessages": false,
+  "liveDatabaseVersion": "23",
+  "chipModuleEnabled": false,
+  "limitations": [
+    "Real Eastmoney availability not verified",
+    "No historical performance backtest",
+    "V24 only in isolated schemas",
+    "Live enablement pending separate authorization"
+  ]
+}

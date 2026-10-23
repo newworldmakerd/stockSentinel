@@ -10,3 +10,14 @@ target/
 
 .pip-cache/
 .runtime/
+
+# Local runtime data, IDE settings and developer-only credentials.
+local-data/
+.idea/
+.vscode/
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx

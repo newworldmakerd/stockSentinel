@@ -1,0 +1,27 @@
+package com.stocksentinel.trend;
+import com.fasterxml.jackson.databind.ObjectMapper;import com.stocksentinel.market.*;import com.stocksentinel.personal.*;import com.stocksentinel.stock.WatchlistMapper;
+import com.stocksentinel.jobs.TradingDatePolicy;import com.stocksentinel.report.ReportMapper;import com.stocksentinel.notification.*;
+import java.time.*;import java.util.*;
+import org.springframework.context.annotation.*;import org.springframework.beans.factory.*;import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;import org.springframework.scheduling.annotation.Scheduled;import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+@Configuration(proxyBeanMethods=false) @ConditionalOnProperty(name="trend.enabled",havingValue="true")
+public class TrendConfiguration {
+    @Bean TrendClient trendClient(@Value("${market.python-url:http://127.0.0.1:8000}")String url){return new TrendClient(url);}
+    @Bean TrendPublisher trendPublisher(TrendMapper mapper,NotificationSettings bot){return new TrendPublisher(mapper,bot);}
+    @Bean TrendPreparationWriter trendPreparationWriter(TrendMapper mapper,TrendLedger ledger){return new TrendPreparationWriter(mapper,ledger);}
+    @Bean TrendLedger trendLedger(TrendMapper mapper,PositionMapper positions,PositionService service,WatchlistMapper stocks,TradingDatePolicy dates,ReportMapper calendar,Clock clock,TrendSettings settings,NotificationSettings bot,ObjectMapper json){return new TrendLedger(mapper,positions,service,stocks,dates,calendar,clock,settings,bot,json);}
+    @Bean TrendService trendService(TrendMapper mapper,MarketMapper bars,MarketCollectionService market,TrendClient client,TrendLedger ledger,TrendSettings settings,TradingDatePolicy dates,ReportMapper calendar,NotificationSettings bot,ObjectMapper json,Clock clock,TrendPublisher publisher){return new TrendService(mapper,bars,market,client,ledger,settings,dates,calendar,bot,json,clock,publisher);}
+    @Bean(name="trendHistoryScheduler") ThreadPoolTaskScheduler historyTasks(){var s=new ThreadPoolTaskScheduler();s.setPoolSize(1);s.setThreadNamePrefix("trend-history-");return s;}
+    @Bean(name="trendQuoteScheduler") ThreadPoolTaskScheduler quoteTasks(){var s=new ThreadPoolTaskScheduler();s.setPoolSize(1);s.setThreadNamePrefix("trend-quotes-");return s;}
+    @Bean(name="trendDeliveryScheduler") ThreadPoolTaskScheduler deliveryTasks(){var s=new ThreadPoolTaskScheduler();s.setPoolSize(1);s.setThreadNamePrefix("trend-notify-");return s;}
+    @Bean Tasks trendTasks(TrendService service,TrendSettings settings,TradingDatePolicy dates,ReportMapper calendar,Clock clock,TrendMapper mapper,NotificationSettings bot,ObjectProvider<NotificationClient> clients){return new Tasks(service,settings,dates,calendar,clock,mapper,bot,clients);}
+    public static class Tasks {
+        private final TrendService service;private final TrendSettings settings;private final TradingDatePolicy dates;private final ReportMapper calendar;private final Clock clock;private final TrendMapper mapper;private final NotificationSettings bot;private final ObjectProvider<NotificationClient> clients;
+        Tasks(TrendService service,TrendSettings settings,TradingDatePolicy dates,ReportMapper calendar,Clock clock,TrendMapper mapper,NotificationSettings bot,ObjectProvider<NotificationClient> clients){this.service=service;this.settings=settings;this.dates=dates;this.calendar=calendar;this.clock=clock;this.mapper=mapper;this.bot=bot;this.clients=clients;}
+        @Scheduled(fixedDelayString="${trend.prepare-delay-ms:10000}",scheduler="trendHistoryScheduler") public void prepare(){if(!settings.schedule||!"OPEN".equals(dates.calendarStatus(dates.today())))return;var time=LocalTime.now(clock.withZone(TradingDatePolicy.ZONE));if(time.isBefore(LocalTime.of(7,0))||time.isAfter(LocalTime.of(23,0)))return;try{if(service.prepareQueued())return;var prior=calendar.previousOpen(dates.today());if(prior!=null)service.prepare(prior,false);if(dates.allowToday(dates.today()))service.prepare(dates.today(),false);}catch(Exception failed){org.slf4j.LoggerFactory.getLogger(Tasks.class).warn("trend_prepare_failed");}}
+        @Scheduled(cron="0 * * * * *",zone="Asia/Shanghai",scheduler="trendQuoteScheduler") public void scan(){if(!settings.schedule)return;var time=LocalTime.now(clock.withZone(TradingDatePolicy.ZONE));if(time.isBefore(LocalTime.of(9,31))||time.isAfter(LocalTime.of(16,0)))return;try{service.scan(false);}catch(Exception failed){org.slf4j.LoggerFactory.getLogger(Tasks.class).warn("trend_scan_failed");}}
+        @Scheduled(fixedDelayString="${trend.delivery-delay-ms:1000}",scheduler="trendDeliveryScheduler") public void deliver(){if(!settings.schedule||!bot.enabled)return;var client=clients.getIfAvailable();if(client==null)return;mapper.expire();mapper.expirePending();NotificationRow row=null;for(String chat:bot.pollTargets("trend")){row=mapper.claim(chat,UUID.randomUUID().toString());if(row!=null)break;}if(row==null)return;
+            NotificationClient.Delivery result;try{result=client.send(row.targetChatId,row.payload);}catch(Exception failed){result=new NotificationClient.Delivery(NotificationClient.Outcome.UNKNOWN,"CLIENT_FAILED");}
+            String state=switch(result.outcome()){case SUCCESS->"SUCCESS";case UNKNOWN->"UNKNOWN";case REJECTED->"FAILED";case RETRY->row.attempts>=3?"FAILED":"RETRY";};mapper.finish(row.id,row.claimToken,state,"SUCCESS".equals(state)?null:"DELIVERY_"+result.outcome());}
+    }
+}

@@ -11,32 +11,40 @@ public class NotificationTemplate {
     private final ObjectMapper json;
     public NotificationTemplate(ObjectMapper json) { this.json=json; }
     public String render(SignalEvent s,String advice) {
+        return render(s,advice,null);
+    }
+    public String render(SignalEvent s,String advice,String stockName) {
         if(s==null || s.symbol==null || !s.symbol.matches("[0-9]{6}") || s.tradeDate==null
                 || s.referencePrice==null || s.referencePrice.signum()<=0)
             throw new IllegalArgumentException("Invalid notification signal");
         String title=switch(s.signalType) {
             case "BUY_WATCH" -> "买入观察"; case "SELL_WATCH" -> "卖出观察";
             case "RISK_ALERT" -> "风险预警";
+            case "PULLBACK_STRENGTH" -> "强势股缩量回踩·转强观察";
             case "RAPID_RISE" -> "盘中快速拉升";case "RAPID_DROP" -> "盘中快速跳水";
             case "BREAKOUT_WATCH" -> "盘中突破观察";case "TAKE_PROFIT" -> "止盈价位提醒";case "STOP_LOSS" -> "止损价位提醒";
             default -> throw new IllegalArgumentException("Unsupported signal type");
         };
-        StringBuilder b=new StringBuilder("【StockSentinel · "+title+"】\n");
-        b.append("来源：本地确定性规则\n股票：").append(safe(s.symbol,6)).append("\n交易日：").append(s.tradeDate)
-            .append("\n参考价格：").append(s.referencePrice).append(s.signalAt==null ? " 元（不复权收盘价）\n策略：" : " 元（不复权分钟收盘价）\n策略：")
-            .append(safe(s.strategyCode,80)).append(" / ").append(safe(s.strategyVersion,40))
-            .append("\n规则依据：").append(safe(s.reason,1000)).append("\n规则风险：").append(safe(s.riskNote,500));
-        if(s.signalAt!=null) b.append("\n分钟时间：").append(s.signalAt.atZoneSameInstant(java.time.ZoneId.of("Asia/Shanghai")));
+        if("INTRADAY_MA60_V1".equals(s.strategyCode)&&"RISK_ALERT".equals(s.signalType))title="盘中跌破MA60·风险预警";
+        StringBuilder b=new StringBuilder(MessageIdentity.signalHeader(s,title));
+        b.append("股票：").append(stockName==null||stockName.isBlank()?"":safe(stockName,30)+" ").append(safe(s.symbol,6))
+            .append("\n🕒 ").append(s.signalAt==null?s.tradeDate+" 收盘":MessageDisplay.time(s.signalAt)).append("（北京时间）")
+            .append("\n💰 参考价格：").append(s.referencePrice.stripTrailingZeros().toPlainString())
+            .append(s.signalAt==null ? " 元｜不复权收盘价" : " 元｜不复权分钟收盘价");
+        String adviceRisk="";
         if (advice!=null) {
             try {
                 Advice a=json.readValue(advice,Advice.class);
-                b.append("\n\n来源：大模型辅助建议（不改变规则信号）\n建议：").append(safe(a.suggestion(),400))
-                    .append("\n依据：").append(safe(String.join("；",a.reasons()),400))
-                    .append("\n风险：").append(safe(String.join("；",a.risks()),400))
-                    .append("\n失效条件：").append(safe(a.invalidation(),300));
+                b.append("\n\n🤖 大模型辅助建议（摘要）\n").append(safe(a.suggestion(),180));
+                adviceRisk="\n\n⚠️ AI风险："+safe(String.join("；",a.risks().stream().limit(2).toList()),180)
+                    +(a.risks().size()>2?"（其余风险未展开）":"")
+                    +"\n失效条件："+safe(a.invalidation(),100);
             } catch (Exception invalid) { b.append("\n\n大模型建议：内容不可用；保留上述规则信号。"); }
         } else b.append("\n\n大模型建议：暂未生成或未启用。");
-        b.append("\n\n仅供辅助分析，不构成收益承诺；不自动下单。");
+        b.append("\n\n📍 触发原因\n").append(safe(displayNumbers(s.reason),320)).append(adviceRisk)
+            .append("\n\n⚠️ ").append(safe(s.riskNote,220))
+            .append("\n来源：本地确定性规则").append(advice==null?"":"；来源：大模型辅助建议")
+            .append("\n仅供辅助分析，不构成收益承诺；不自动下单。");
         // Keep a conservative 4000-byte message, preserving UTF-8 codepoint boundaries.
         String result=b.toString();
         if (result.getBytes(StandardCharsets.UTF_8).length>4000) {
@@ -50,6 +58,14 @@ public class NotificationTemplate {
             result=cut+suffix;
         }
         return result;
+    }
+    private static String displayNumbers(String text) {
+        if(text==null)return null;
+        return java.util.regex.Pattern.compile("(?<![\\w.])-?\\d+\\.\\d{5,}(?![\\w.])").matcher(text).replaceAll(match->{
+            var number=new java.math.BigDecimal(match.group());
+            var rounded=number.setScale(4,java.math.RoundingMode.HALF_UP);
+            return rounded.signum()==0&&number.signum()!=0?match.group():rounded.stripTrailingZeros().toPlainString();
+        });
     }
     private String safe(String value,int max) {
         if (value==null) return "未提供";

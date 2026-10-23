@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 /** Bounded asynchronous command handling: callback text is ephemeral and never logged. */
 @Service
 public class GroupMonitorCommands implements DisposableBean {
+    @org.springframework.beans.factory.annotation.Autowired private GroupConversationService conversation;
     private final boolean enabled;
     private final NotificationSettings settings;
     private final ObjectProvider<MonitorIntentClient> intents;
@@ -36,13 +37,14 @@ public class GroupMonitorCommands implements DisposableBean {
         try {worker.execute(()->handle(message));} catch(RejectedExecutionException full) { /* No unbounded queue or callback-thread model requests. */ }
     }
     private boolean eligible(GroupMessage m) {
-        if(!enabled || m==null || !settings.botId.equals(m.botId) || !settings.chatId.equals(m.chatId)
+        if(!enabled || m==null || !settings.botId.equals(m.botId) || !settings.accepts(m.chatId)
                 || m.userId==null || m.userId.isBlank() || settings.botId.equals(m.userId)
                 || m.msgId==null || m.msgId.isBlank() || m.msgId.length()>256
                 || m.msgId.codePoints().anyMatch(Character::isISOControl)
                 || m.text==null || m.text.isBlank() || m.text.length()>1000 || m.text.contains("【StockSentinel】")) return false;
         if(m.createdAt!=null && (m.createdAt<Instant.now().getEpochSecond()-180 || m.createdAt>Instant.now().getEpochSecond()+30)) return false;
         String text=normalize(m.text);
+        if(conversation.enabled())return true;
         if(!(text.contains("监控") || text.contains("关注") || text.contains("盯盘"))) return false;
         for(String negative:new String[]{"取消","删除","不要","不用","停止","不再","别","不需要"}) if(text.contains(negative)) return false;
         return true;
@@ -55,6 +57,11 @@ public class GroupMonitorCommands implements DisposableBean {
             .digest((m.botId+"\n"+m.chatId+"\n"+m.msgId).getBytes(StandardCharsets.UTF_8)));}
         catch(Exception impossible) {throw new IllegalStateException("Digest unavailable");}
         if(commands.claim(key)!=1) return;
+        if(conversation.enabled()) {
+            try {String answer=conversation.reply(m);commands.finish(key,"CHAT_PROCESSED",null);send(m.chatId,key,answer);}
+            catch(Exception failed){commands.finish(key,"FAILED",null);send(m.chatId,key,"本次对话暂不可用，请稍后重试。");}
+            return;
+        }
         String reply;
         try {
             String query=intents.getObject().stockQuery(m.text);
@@ -80,10 +87,18 @@ public class GroupMonitorCommands implements DisposableBean {
             commands.finish(key,"FAILED",null);
             reply="本次添加未确认成功，请稍后重试或通过关注名单核实；未执行交易。";
         }
+        send(m.chatId,key,reply);
+    }
+    private void send(String chatId,String key,String reply) {
         try {
-            var delivery=notifications.getObject().send(settings.chatId,"【StockSentinel】\n"+reply);
+            var delivery=notifications.getObject().send(chatId,fit("【StockSentinel】\n"+reply));
             commands.ack(key,delivery.outcome().name());
         } catch(Exception unavailable) {commands.ack(key,"UNKNOWN");}
+    }
+    private static String fit(String text) {
+        if(text.getBytes(StandardCharsets.UTF_8).length<=3900)return text;
+        var out=new StringBuilder();int bytes=0;for(int cp:text.codePoints().toArray()){String part=new String(Character.toChars(cp));int size=part.getBytes(StandardCharsets.UTF_8).length;if(bytes+size>3700)break;out.append(part);bytes+=size;}
+        return out+"\n（内容较长，请指定股票或翻页继续查询）";
     }
     private static boolean queryEquals(String symbol,String name,String query) {return symbol.equals(query) || normalize(name).equals(query);}
     private static String normalize(String text) {return Normalizer.normalize(text,Normalizer.Form.NFKC).replaceAll("\\s+","");}

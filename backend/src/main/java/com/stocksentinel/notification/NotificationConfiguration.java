@@ -10,8 +10,9 @@ public class NotificationConfiguration {
     @Bean
     @ConditionalOnProperty(name="wecom.enabled",havingValue="true")
     SmartBotClient smartBotClient(ObjectMapper json,NotificationSettings settings,
-            org.springframework.beans.factory.ObjectProvider<com.stocksentinel.commands.GroupMonitorCommands> commands) {
-        var client=new SmartBotClient(json,settings);
+            org.springframework.beans.factory.ObjectProvider<com.stocksentinel.commands.GroupMonitorCommands> commands,
+            @org.springframework.beans.factory.annotation.Value("${wecom.reconnect-cooldown-seconds:300}") int cooldownSeconds) {
+        var client=new SmartBotClient(json,settings,cooldownSeconds);
         client.onGroupMessage(message->commands.getObject().accept(message));
         return client;
     }

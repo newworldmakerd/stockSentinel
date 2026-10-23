@@ -8,6 +8,8 @@ import com.stocksentinel.market.MarketContracts.*;
 
 @Mapper
 public interface MarketMapper {
+    @Select("SELECT trade_date,source FROM market_daily_bar WHERE symbol=#{symbol} AND adjustment=#{adjustment}")
+    List<MarketDailyBar> sourceHistory(@Param("symbol") String symbol,@Param("adjustment") Adjustment adjustment);
     @Select("SELECT count(*) FROM stock_info WHERE symbol=#{symbol}")
     int stockExists(String symbol);
 

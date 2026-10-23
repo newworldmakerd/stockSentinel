@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "stocksentinel-quant"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "akshare>=1.16,<2"]
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "akshare>=1.16,<2", "mini-racer>=0.14,<0.15"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10", "httpx>=0.28,<1"]

@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-21T11:22:36.447518+08:00",
+  "status": {
+    "chatAssistantEnabled": true,
+    "groupCommandsEnabled": true,
+    "scheduleEnabled": true,
+    "personalPriceEnabled": true,
+    "wecomConnection": "AUTHENTICATED",
+    "intradayEnabled": true,
+    "dailyJobsEnabled": true,
+    "dailyScheduleEnabled": true
+  },
+  "tests": {
+    "javaUnit": 104,
+    "javaNative": 83
+  },
+  "dailyGuardCheck": {
+    "status": "SKIPPED",
+    "code": "CLOSE_NOT_CONFIRMED",
+    "tradeDate": "2026-10-21",
+    "processed": 0
+  },
+  "realModelReadOnlyProbe": {
+    "status": "SUCCESS",
+    "groupMessageSent": false
+  },
+  "schemaVersion": 13,
+  "deliveryMode": "same configured group, label personal owner",
+  "presetRealPricesByAgent": false
+}

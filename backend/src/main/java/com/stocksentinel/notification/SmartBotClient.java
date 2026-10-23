@@ -33,11 +33,18 @@ public class SmartBotClient implements NotificationClient,DisposableBean {
     private volatile boolean authenticated,stopped,takenOver,authRejected;
     private int reconnects;
     private long nextConnect,lastHeartbeat;
+    private final java.util.function.LongSupplier nanoClock;
+    private final java.util.function.DoubleSupplier jitter;
+    private final long cooldownSeconds;
+    private long connectionAttempts;
 
     public SmartBotClient(ObjectMapper json,NotificationSettings settings) {
+        this(json,settings,300);
+    }
+    public SmartBotClient(ObjectMapper json,NotificationSettings settings,int cooldownSeconds) {
         this(json,settings.botId,settings.secret,listener->HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5)).build().newWebSocketBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).buildAsync(GATEWAY,listener),10000);
+            .connectTimeout(Duration.ofSeconds(5)).buildAsync(GATEWAY,listener),10000,false,id->{},System::nanoTime,()->ThreadLocalRandom.current().nextDouble(),cooldownSeconds);
         maintenance.scheduleWithFixedDelay(this::maintain,0,1,TimeUnit.SECONDS);
     }
     /** Injectable transport is used only by local protocol tests. */
@@ -46,8 +53,15 @@ public class SmartBotClient implements NotificationClient,DisposableBean {
     }
     public SmartBotClient(ObjectMapper json,String botId,String secret,Connector connector,int timeoutMs,
             boolean receiveOnly,java.util.function.Consumer<String> discovered) {
+        this(json,botId,secret,connector,timeoutMs,receiveOnly,discovered,System::nanoTime,()->ThreadLocalRandom.current().nextDouble(),300);
+    }
+    public SmartBotClient(ObjectMapper json,String botId,String secret,Connector connector,int timeoutMs,
+            boolean receiveOnly,java.util.function.Consumer<String> discovered,java.util.function.LongSupplier nanoClock,
+            java.util.function.DoubleSupplier jitter,int cooldownSeconds) {
+        if(cooldownSeconds<30||cooldownSeconds>300)throw new IllegalArgumentException("Invalid reconnect cooldown");
         this.json=json;this.botId=botId;this.secret=secret;this.connector=connector;this.timeoutMs=timeoutMs;
         this.receiveOnly=receiveOnly;this.discovered=discovered;
+        this.nanoClock=nanoClock;this.jitter=jitter;this.cooldownSeconds=cooldownSeconds;
     }
     public static SmartBotClient discovery(ObjectMapper json,String botId,String secret,java.util.function.Consumer<String> discovered) {
         var client=new SmartBotClient(json,botId,secret,listener->HttpClient.newBuilder()
@@ -62,25 +76,35 @@ public class SmartBotClient implements NotificationClient,DisposableBean {
         if(takenOver) return "TAKEN_OVER";
         if(authRejected) return "AUTH_REJECTED";
         if(authenticated) return "AUTHENTICATED";
-        return reconnects>=10 ? "CONNECTION_FAILED" : "CONNECTING";
+        return reconnects>=10 ? "RECONNECT_COOLDOWN" : "CONNECTING";
+    }
+    public synchronized Map<String,Object> connectionDiagnostics(){
+        long remaining=nextConnect==0?0:Math.max(0,nextConnect-nanoClock.getAsLong());
+        return Map.of("state",discoveryStatus(),"connectionAttempts",connectionAttempts,"consecutiveFailures",reconnects,
+            "nextProbeSeconds",authenticated||stopped||takenOver||authRejected?0:(remaining+999_999_999L)/1_000_000_000L,
+            "manualActionRequired",takenOver||authRejected,"cooldownMaxSeconds",cooldownSeconds);
     }
     private synchronized void maintain() {
         if(stopped || takenOver || authRejected) return;
         try {
             if(!authenticated) { connect();return; }
-            if(System.nanoTime()-lastHeartbeat>=TimeUnit.SECONDS.toNanos(30)) {
+            if(nanoClock.getAsLong()-lastHeartbeat>=TimeUnit.SECONDS.toNanos(30)) {
                 JsonNode ack=request(socket,"ping",Map.of());
                 if(!ok(ack)) throw new IllegalStateException("Heartbeat rejected");
-                lastHeartbeat=System.nanoTime();
+                lastHeartbeat=nanoClock.getAsLong();
             }
         } catch(Exception unavailable) { disconnect(); }
     }
     private void connect() throws Exception {
         if(authenticated) return;
-        if(stopped || takenOver || authRejected || reconnects>=10 || System.nanoTime()<nextConnect)
+        long now=nanoClock.getAsLong();
+        if(stopped || takenOver || authRejected || (nextConnect!=0&&now-nextConnect<0))
             throw new IllegalStateException("Connection unavailable");
-        reconnects++;
-        nextConnect=System.nanoTime()+TimeUnit.SECONDS.toNanos(Math.min(30,1L << Math.min(reconnects-1,5)));
+        reconnects=Math.min(10,reconnects+1);connectionAttempts++;
+        long cap=reconnects>=10?cooldownSeconds:Math.min(30,1L << Math.min(reconnects-1,5));
+        double random=Math.max(0,Math.min(1,jitter.getAsDouble()));
+        long delayMs=Math.max(1,(long)(cap*1000*(0.8+0.2*random)));
+        nextConnect=now+TimeUnit.MILLISECONDS.toNanos(delayMs);
         try {
             var future=connector.connect(new Frames());
             // Close a connection that arrives after the caller's bounded wait.
@@ -91,7 +115,7 @@ public class SmartBotClient implements NotificationClient,DisposableBean {
             JsonNode ack=request(socket,"aibot_subscribe",Map.of("bot_id",botId,"secret",secret));
             if(!ok(ack)) { authRejected=true;throw new IllegalStateException("Authentication rejected"); }
             if(takenOver || stopped) throw new IllegalStateException("Connection stopped");
-            authenticated=true;reconnects=0;lastHeartbeat=System.nanoTime();
+            authenticated=true;reconnects=0;nextConnect=0;lastHeartbeat=nanoClock.getAsLong();
         } catch(Exception failure) { disconnect();throw failure; }
     }
     @Override public synchronized Delivery send(String chatId,String markdown) {

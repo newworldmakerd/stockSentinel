@@ -29,6 +29,9 @@ public class SignalAdvisoryService {
         String output;
         try {
             if (input.length() > 60000) throw new IllegalArgumentException("Signal snapshot too large");
+            var snapshot = mapper.readTree(input);
+            normalizeTimes(snapshot);
+            input = mapper.writeValueAsString(snapshot);
             output = mapper.writeValueAsString(java.util.Objects.requireNonNull(client.analyze(input)));
         } catch (Exception failure) {
             store.save(signalId, model, PROMPT_VERSION, "FAILED", input, null, "MODEL_ANALYSIS_FAILED");
@@ -36,5 +39,22 @@ public class SignalAdvisoryService {
         }
         store.save(signalId, model, PROMPT_VERSION, "SUCCESS", input, output, null);
         return Status.SUCCESS;
+    }
+
+    /** Display conversion only: retain the instant and leave the persisted rule snapshot untouched. */
+    private static void normalizeTimes(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node.isObject()) {
+            var object = (com.fasterxml.jackson.databind.node.ObjectNode) node;
+            object.properties().forEach(entry -> {
+                var value = entry.getValue();
+                if (value.isTextual() && value.asText().matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*")) {
+                    try {
+                        var time = java.time.ZonedDateTime.parse(value.asText());
+                        object.put(entry.getKey(), time.withZoneSameInstant(com.stocksentinel.jobs.TradingDatePolicy.ZONE)
+                                .toOffsetDateTime().toString());
+                    } catch (java.time.format.DateTimeParseException ignored) { /* Preserve unzoned or non-time data. */ }
+                } else normalizeTimes(value);
+            });
+        } else if (node.isArray()) node.forEach(SignalAdvisoryService::normalizeTimes);
     }
 }

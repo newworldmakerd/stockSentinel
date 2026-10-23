@@ -12,6 +12,32 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class NotificationTemplateTest {
+    @Test void intradayLayoutKeepsFactsWithoutTechnicalClutter() throws Exception {
+        var s=signal();s.signalType="RAPID_RISE";s.strategyCode="INTRADAY_V1";s.strategyVersion="1.0.0-r1";
+        s.signalAt=java.time.OffsetDateTime.parse("2026-10-22T01:35:00Z");
+        s.reason="五分钟涨幅达到阈值（实际：2.196307094266；阈值：2）";
+        var json=new ObjectMapper();
+        String text=new NotificationTemplate(json).render(s,json.writeValueAsString(new Advice("等待回踩确认",List.of("不重复展开的模型依据"),List.of("可能回落","行情延迟","第三项风险"),"跌回触发位")),"亨通光电");
+        assertTrue(text.contains("2026-10-22 09:35（北京时间）"));
+        assertTrue(text.contains("实际：2.1963"));assertTrue(text.contains("阈值：2"));
+        assertTrue(text.contains("触发原因"));assertTrue(text.contains("大模型辅助建议（摘要）"));
+        assertTrue(text.indexOf("参考价格")<text.indexOf("等待回踩确认"));
+        assertTrue(text.indexOf("等待回踩确认")<text.indexOf("触发原因"));
+        assertTrue(text.indexOf("触发原因")<text.indexOf("AI风险"));
+        assertTrue(text.contains("可能回落；行情延迟"));assertTrue(text.contains("其余风险未展开"));
+        assertFalse(text.contains("不重复展开的模型依据"));
+        assertFalse(text.contains("INTRADAY_V1"));assertFalse(text.contains("Asia/Shanghai"));
+        assertFalse(text.contains("01:35"));assertEquals("1.0.0-r1",s.strategyVersion);
+        assertTrue(s.reason.contains("2.196307094266"));
+    }
+    @Test void shortTimeHandlesCrossDateAndUnknownTime() {
+        assertEquals("2026-10-22 00:01",MessageDisplay.time(java.time.OffsetDateTime.parse("2026-10-21T16:01:00Z")));
+        assertEquals("未记录",MessageDisplay.time(null));
+    }
+    @Test void rendersChineseNameAlongsideCode(){
+        var s=signal();s.symbol="600487";
+        assertTrue(new NotificationTemplate(new ObjectMapper()).render(s,null,"亨通光电").contains("股票：亨通光电 600487"));
+    }
     private SignalEvent signal() {
         var s=new SignalEvent();s.symbol="999997";s.tradeDate=LocalDate.of(2025,1,2);s.signalType="BUY_WATCH";
         s.strategyCode="SWING_TREND_V1";s.strategyVersion="1.0.0";s.referencePrice=BigDecimal.TEN;

@@ -9,6 +9,8 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface SignalMapper {
+    @Select("SELECT i.name FROM signal_event s JOIN stock_info i ON i.symbol=s.symbol WHERE s.id=#{id}")
+    String stockName(long id);
     @Insert("INSERT INTO signal_event(symbol,trade_date,strategy_code,strategy_version,signal_type,reference_price,reason,risk_note,details) VALUES(#{symbol},#{tradeDate},#{strategyCode},#{strategyVersion},#{signalType},#{referencePrice},#{reason},#{riskNote},CAST(#{details} AS jsonb)) ON CONFLICT(symbol,trade_date,strategy_code,strategy_version,signal_type) WHERE signal_at IS NULL DO NOTHING")
     @Options(useGeneratedKeys=true,keyProperty="id",keyColumn="id")
     int insert(SignalEvent signal);

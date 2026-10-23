@@ -13,6 +13,8 @@ public interface WatchlistMapper {
     List<StockInfo> search(@Param("query") String query,@Param("limit") int limit,@Param("offset") int offset);
     @Insert("INSERT INTO stock_watchlist(symbol,remark) VALUES(#{symbol},#{remark}) ON CONFLICT(symbol) DO NOTHING")
     int add(@Param("symbol") String symbol,@Param("remark") String remark);
+    @Select("SELECT enabled FROM stock_watchlist WHERE symbol=#{symbol} FOR SHARE")
+    Boolean enabledForShare(String symbol);
     @Select("SELECT * FROM stock_watchlist WHERE symbol=#{symbol}")
     StockWatchlist find(String symbol);
     @Select("SELECT * FROM stock_watchlist ORDER BY created_at DESC,id DESC")

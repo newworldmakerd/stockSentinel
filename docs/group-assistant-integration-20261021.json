@@ -1,0 +1,24 @@
+{
+  "checkedAt": "2026-10-21T11:01:20.724171+08:00",
+  "monitoring": {
+    "scheduleEnabled": true,
+    "intradayEnabled": true,
+    "groupCommandsEnabled": true,
+    "chatAssistantEnabled": true,
+    "wecomConnection": "AUTHENTICATED"
+  },
+  "health": "UP",
+  "tests": {
+    "javaUnit": 104,
+    "javaNative": 74
+  },
+  "realModelProbe": {
+    "status": "SUCCESS",
+    "tools": [
+      "get_strategy_info"
+    ],
+    "groupMessageSent": false
+  },
+  "legacyOwnership": "UNKNOWN_NOT_BACKFILLED",
+  "schemaVersion": 12
+}

@@ -37,6 +37,12 @@ public class SignalWriter {
         this.indicators=indicators; this.json=json; this.events=events;
         this.dates=dates;
     }
+    @org.springframework.beans.factory.annotation.Autowired private com.stocksentinel.stock.WatchlistMapper watches;
+    public static class WatchRemoved extends RuntimeException {}
+    @Transactional public List<Saved> saveWatched(StrategyDefinition definition,StrategyContextReader.Prepared prepared,List<Decision> decisions) {
+        if(!Boolean.TRUE.equals(watches.enabledForShare(prepared.context().currentBar().symbol)))throw new WatchRemoved();
+        return save(definition,prepared,decisions);
+    }
     @Transactional public List<Saved> save(StrategyDefinition definition,StrategyContextReader.Prepared prepared,List<Decision> decisions) {
         var context=prepared.context(); var current=context.currentBar();
         boolean manuallyConfirmed=dates!=null && current.tradeDate.equals(dates.today());

@@ -13,6 +13,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class NotificationService {
+    @org.springframework.beans.factory.annotation.Value("${llm.enabled:false}") private boolean waitForAdvice;
+    @org.springframework.beans.factory.annotation.Autowired private com.stocksentinel.personal.PositionService positions;
     private final NotificationMapper mapper;
     private final NotificationSettings settings;
     private final SignalMapper signals;
@@ -25,9 +27,14 @@ public class NotificationService {
     public NotificationRow enqueue(long id) {
         if (!settings.enabled) return null;
         if (signals.find(id)==null) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"SIGNAL_NOT_FOUND");
-        String key="smart-bot:"+id+":"+destinationHash();
-        mapper.enqueue(id,key,settings.chatId);
-        return mapper.byKey(key);
+        NotificationRow first=null;
+        for(String chat:settings.chatIds){
+            String key="smart-bot:"+id+":"+settings.destinationHash(chat);
+            mapper.enqueue(id,key,chat);
+            if(first==null)first=mapper.byKey(key);
+        }
+        if(positions!=null)positions.enqueue(id);
+        return first;
     }
     @Transactional(propagation=Propagation.REQUIRES_NEW)
     public NotificationRow enqueueManual(long id) { return enqueue(id); }
@@ -39,12 +46,18 @@ public class NotificationService {
     @Transactional(propagation=Propagation.REQUIRES_NEW)
     public NotificationRow claim() {
         mapper.expire();
-        var row=mapper.claim(UUID.randomUUID().toString(),destinationHash());
+        NotificationRow row=null;
+        for(String chat:settings.pollTargets("signals")){
+            String hash=settings.destinationHash(chat);row=mapper.claim(UUID.randomUUID().toString(),hash,waitForAdvice);if(row!=null)break;
+        }
         if (row!=null && row.payload==null) {
             try {
                 var signal=signals.find(row.signalId);
                 if (signal==null) throw new IllegalStateException("Missing notification signal");
-                row.payload=template.render(signal,mapper.advice(row.signalId));
+                var advice=mapper.advice(row.signalId);
+                row.payload=template.render(signal,advice,signals.stockName(row.signalId));
+                if(waitForAdvice && advice==null)row.payload=row.payload.replace("大模型建议：暂未生成或未启用。",
+                    "FAILED".equals(mapper.adviceStatus(row.signalId))?"大模型建议：本次分析失败，先发送规则提醒。":"大模型建议：等待分析超时，先发送规则提醒。");
                 mapper.payload(row.id,row.claimToken,row.payload);
             } catch (Exception invalid) {
                 mapper.finish(row.id,row.claimToken,"FAILED","INVALID_NOTIFICATION_INPUT",0);

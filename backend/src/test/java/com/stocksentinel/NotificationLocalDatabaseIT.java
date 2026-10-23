@@ -102,6 +102,12 @@ class NotificationLocalDatabaseIT {
     private NotificationRow enqueue() {
         return new TransactionTemplate(transactions).execute(s->notifications.enqueue(signalId));
     }
+    @Test void enabledModelWaitsForResultButHasBoundedFallback() {
+        var row=enqueue();assertNull(mapper.claim(java.util.UUID.randomUUID().toString(),destination(row),true));
+        jdbc.update("UPDATE notify_record SET created_at=now()-interval '36 seconds' WHERE id=?",row.id);
+        assertNotNull(mapper.claim(java.util.UUID.randomUUID().toString(),destination(row),true));
+    }
+    private String destination(NotificationRow row){return row.idempotencyKey.substring(row.idempotencyKey.lastIndexOf(':')+1);}
     private void due(long id) { jdbc.update("UPDATE notify_record SET next_retry_at=now()-interval '1 second' WHERE id=?",id); }
     private void outcome(NotificationClient.Outcome result) {
         when(client.send(anyString(),anyString())).thenAnswer(call->{

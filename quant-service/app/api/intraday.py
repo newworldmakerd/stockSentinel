@@ -1,16 +1,19 @@
 """Minute normalization and metrics only. Java owns calendar, rules and all writes."""
 from datetime import datetime, timedelta, time
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import os
+import logging
 import time as elapsed_time
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ValidationError
 from app.api.market import get_provider
 from app.providers.tencent_provider import get_tencent_provider
+from app.providers.minute_failure import failure_code, error_location, MinuteDataError
 
 ZONE = ZoneInfo("Asia/Shanghai")
 router = APIRouter(prefix="/internal/market")
+logger = logging.getLogger(__name__)
 
 
 def minute_clock():
@@ -76,20 +79,61 @@ def normalize_minutes(symbol, frame, now, *, source="AKSHARE_EASTMONEY_1M"):
     current_minute = now.replace(second=0, microsecond=0)
     bars = []
     previous = None
-    for row in frame.to_dict("records"):
-        stamp = datetime.fromisoformat(str(row["时间"]))
+    rows = frame.to_dict("records")
+    fields = {"开盘": "open", "最高": "high", "最低": "low", "收盘": "close", "成交量": "volume", "成交额": "amount"}
+    def number(row, key, index):
+        field = fields[key]
+        if key not in row:
+            raise MinuteDataError("DATA_FIELD_MISSING", row=index, field=field)
+        try:
+            value = Decimal(str(row[key]))
+            if not value.is_finite():
+                raise InvalidOperation
+            return value
+        except (InvalidOperation, ValueError, TypeError):
+            raise MinuteDataError("DATA_NUMBER", row=index, field=field) from None
+    for index, row in enumerate(rows):
+        if "时间" not in row:
+            raise MinuteDataError("DATA_FIELD_MISSING", row=index, field="time")
+        try:
+            stamp = datetime.fromisoformat(str(row["时间"]))
+        except (ValueError, TypeError):
+            raise MinuteDataError("DATA_TIME_PARSE", row=index, field="time") from None
         stamp = stamp.replace(tzinfo=ZONE) if stamp.tzinfo is None else stamp.astimezone(ZONE)
-        if stamp.date() != now.date() or stamp.second or stamp.microsecond or session(stamp) is None or stamp > current_minute or (previous is not None and stamp <= previous):
-            raise ValueError("Invalid minute sequence")
+        if stamp.date() != now.date():
+            raise MinuteDataError("DATA_TIME_DATE", row=index, field="time")
+        if stamp.second or stamp.microsecond:
+            raise MinuteDataError("DATA_TIME_PRECISION", row=index, field="time")
+        if session(stamp) is None:
+            raise MinuteDataError("DATA_TIME_SESSION", row=index, field="time")
+        if previous is not None and stamp <= previous:
+            raise MinuteDataError("DATA_TIME_ORDER", row=index, field="time")
+        if stamp > current_minute:
+            # Both observed vendor feeds can label a forming terminal row with the
+            # next minute. Exclude this row; never shift timestamps or use its OHLCV.
+            if (source in {"AKSHARE_EASTMONEY_1M", "TENCENT_1M"}
+                    and index == len(rows)-1 and stamp == current_minute+timedelta(minutes=1)):
+                logger.info("minute_incomplete_tail symbol=%s source=%s row=%s", symbol, source, index)
+                continue
+            raise MinuteDataError("DATA_TIME_FUTURE", row=index, field="time")
         previous = stamp
         if stamp == current_minute:
             continue  # Conservative: never use a possibly still-updating minute.
-        bars.append(MinuteBar(bar_at=stamp, open_price=Decimal(str(row["开盘"])), high_price=Decimal(str(row["最高"])),
-            low_price=Decimal(str(row["最低"])), close_price=Decimal(str(row["收盘"])),
-            volume=Decimal(str(row["成交量"]))*100,
-            amount=None if source == "TENCENT_1M" and row["成交额"] is None else Decimal(str(row["成交额"]))))
+        if "成交额" not in row:
+            raise MinuteDataError("DATA_FIELD_MISSING", row=index, field="amount")
+        try:
+            bar = MinuteBar(bar_at=stamp, open_price=number(row,"开盘",index), high_price=number(row,"最高",index),
+                low_price=number(row,"最低",index), close_price=number(row,"收盘",index),
+                volume=number(row,"成交量",index)*100,
+                amount=None if source == "TENCENT_1M" and row["成交额"] is None else number(row,"成交额",index))
+        except ValidationError as invalid:
+            location = invalid.errors(include_input=False, include_context=False, include_url=False)[0]["loc"]
+            field = {"open_price":"open","high_price":"high","low_price":"low","close_price":"close","volume":"volume","amount":"amount"}.get(location[0] if location else "", "")
+            code = "DATA_PRICE" if field in {"open","high","low","close"} else "DATA_VOLUME" if field=="volume" else "DATA_AMOUNT" if field=="amount" else "DATA_OHLC"
+            raise MinuteDataError(code, row=index, field=field) from None
+        bars.append(bar)
     if len(bars) > 242:
-        raise ValueError("Too many minute rows")
+        raise MinuteDataError("DATA_ROWS", field="rows")
     metrics = MinuteMetrics()
     if len(bars) >= 6 and contiguous(bars[-6:]):
         metrics.five_minute_return_pct = (bars[-1].close_price/bars[-6].close_price-1)*100
@@ -108,16 +152,26 @@ def minutes(symbol: str = Query(pattern=r"^[0-9]{6}$"), provider=Depends(get_pro
         day = now.astimezone(ZONE).date().isoformat()
         frame = provider._call("stock_zh_a_hist_min_em", symbol=symbol, period="1", adjust="",
             start_date=f"{day} 09:30:00", end_date=f"{day} 15:00:00")
-        result = normalize_minutes(symbol, frame, now)
-        if fallback_enabled and (not result.bars or result.bars[-1].bar_at < now-timedelta(seconds=120)):
-            raise ValueError("Primary minutes stale or empty")
+        observed = now + timedelta(seconds=elapsed_time.monotonic()-started)
+        result = normalize_minutes(symbol, frame, observed)
+        if fallback_enabled and (not result.bars or result.bars[-1].bar_at < observed-timedelta(seconds=120)):
+            raise MinuteDataError("DATA_EMPTY" if not result.bars else "DATA_STALE", field="time")
         return result
-    except Exception:
+    except Exception as primary_error:
+        primary_code = failure_code(primary_error)
+        primary_row, primary_field = error_location(primary_error)
+        backup_code = "DISABLED"
+        backup_row, backup_field = -1, ""
         if fallback_enabled:
             try:
-                frame = backup.minutes(symbol, now.astimezone(ZONE).date())
+                frame = backup.minutes(symbol, now.astimezone(ZONE).date(), retry_deadline=started+40)
                 observed = now + timedelta(seconds=elapsed_time.monotonic()-started)
-                return normalize_minutes(symbol, frame, observed, source="TENCENT_1M")
-            except Exception:
-                pass
-        raise HTTPException(status_code=502, detail="Minute provider unavailable or invalid") from None
+                result = normalize_minutes(symbol, frame, observed, source="TENCENT_1M")
+                logger.warning("minute_fallback symbol=%s primary=%s primary_row=%s primary_field=%s backup=SUCCESS", symbol, primary_code, primary_row, primary_field)
+                return result
+            except Exception as backup_error:
+                backup_code = failure_code(backup_error)
+                backup_row, backup_field = error_location(backup_error)
+        logger.warning("minute_unavailable symbol=%s primary=%s primary_row=%s primary_field=%s backup=%s backup_row=%s backup_field=%s", symbol, primary_code, primary_row, primary_field, backup_code, backup_row, backup_field)
+        raise HTTPException(status_code=502, detail="Minute provider unavailable or invalid",
+            headers={"X-Minute-Primary-Error": primary_code, "X-Minute-Backup-Error": backup_code}) from None

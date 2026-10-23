@@ -15,6 +15,29 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Real loopback WebSocket handshake and masked frames, never a vendor connection. */
 class SmartBotProtocolTest {
+    @Test void moreThanTenTransportFailuresRecoverAfterCooldownWithoutRestart() throws Exception {
+        try(var bot=new Bot("SUCCESS")){
+            var attempts=new AtomicInteger();var nanos=new java.util.concurrent.atomic.AtomicLong(1_000_000_000L);
+            var client=new SmartBotClient(new ObjectMapper(),"test-bot","test-only-credential",listener->{
+                if(attempts.incrementAndGet()<=11)return CompletableFuture.failedFuture(new ConnectException("local simulated outage"));
+                return HttpClient.newHttpClient().newWebSocketBuilder().buildAsync(URI.create("ws://127.0.0.1:"+bot.server.getLocalPort()),listener);
+            },700,false,id->{},nanos::get,()->1.0,300);
+            try{
+                for(int i=0;i<11;i++){
+                    assertEquals(NotificationClient.Outcome.RETRY,client.send("test-group","not yet sent").outcome());
+                    assertEquals(i+1,attempts.get());
+                    assertEquals(NotificationClient.Outcome.RETRY,client.send("test-group","still cooling").outcome());
+                    assertEquals(i+1,attempts.get());
+                    if(i>=9){assertEquals("RECONNECT_COOLDOWN",client.discoveryStatus());assertEquals(300L,client.connectionDiagnostics().get("nextProbeSeconds"));}
+                    nanos.addAndGet(TimeUnit.MINUTES.toNanos(6));
+                }
+                assertEquals(NotificationClient.Outcome.SUCCESS,client.send("test-group","recovered").outcome());
+                assertEquals("AUTHENTICATED",client.discoveryStatus());assertEquals(12,attempts.get());
+                assertEquals(1,bot.auths.get());assertEquals(1,bot.sends.get());
+                assertFalse(client.connectionDiagnostics().toString().contains("test-only-credential"));
+            }finally{client.destroy();}
+        }
+    }
     @Test void authenticatedGroupTextReachesCommandHookAndAckTransportRemainsUsable() throws Exception {
         try(var bot=new Bot("SUCCESS")) {
             var client=bot.client();var received=new CompletableFuture<com.stocksentinel.commands.GroupMessage>();

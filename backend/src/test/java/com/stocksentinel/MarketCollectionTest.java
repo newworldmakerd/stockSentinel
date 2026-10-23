@@ -12,6 +12,27 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.springframework.web.server.ResponseStatusException;
 
 class MarketCollectionTest {
+    @Test void tencentReplacementMustCoverEveryPreviousSourceDate() {
+        var client=mock(MarketClient.class);var writer=mock(MarketWriter.class);var mapper=mock(MarketMapper.class);
+        when(mapper.stockExists("600487")).thenReturn(1);
+        var old=new com.stocksentinel.common.entity.MarketDailyBar();old.tradeDate=START.minusDays(1);old.source="OLD_SOURCE";
+        when(mapper.sourceHistory("600487",Adjustment.QFQ)).thenReturn(List.of(old));
+        var b=bar(START,true);var backup=new Bar(b.symbol(),b.tradeDate(),b.openPrice(),b.highPrice(),b.lowPrice(),b.closePrice(),b.volume(),b.amount(),b.turnoverRate(),b.adjustment(),"AKSHARE_TENCENT_DAILY",true);
+        when(client.daily(anyString(),any(),any(),any())).thenReturn(new Daily("600487",START,END,Adjustment.QFQ,"SHARE","CNY",List.of(backup)));
+        var service=new MarketCollectionService(client,writer,mapper,true);
+        assertEquals(409,assertThrows(ResponseStatusException.class,()->service.collect("600487",START,END,Adjustment.QFQ)).getStatusCode().value());verifyNoInteractions(writer);
+        old.tradeDate=START;when(writer.bars(any())).thenReturn(1);
+        assertEquals(1,service.collect("600487",START,END,Adjustment.QFQ).written());
+    }
+    @Test void returningPrimaryAlsoRequiresCompleteTencentHistoryCoverage() {
+        var client=mock(MarketClient.class);var writer=mock(MarketWriter.class);var mapper=mock(MarketMapper.class);
+        when(mapper.stockExists("600487")).thenReturn(1);
+        var old=new com.stocksentinel.common.entity.MarketDailyBar();old.tradeDate=START.minusDays(1);old.source="AKSHARE_TENCENT_DAILY";
+        when(mapper.sourceHistory("600487",Adjustment.QFQ)).thenReturn(List.of(old));
+        when(client.daily(anyString(),any(),any(),any())).thenReturn(new Daily("600487",START,END,Adjustment.QFQ,"SHARE","CNY",List.of(bar(START,true))));
+        assertEquals(409,assertThrows(ResponseStatusException.class,()->new MarketCollectionService(client,writer,mapper,true).collect("600487",START,END,Adjustment.QFQ)).getStatusCode().value());
+        verifyNoInteractions(writer);
+    }
     private static final LocalDate START=LocalDate.of(2025,1,1), END=LocalDate.of(2025,12,31);
     private Bar bar(LocalDate day, boolean finalized) {
         return new Bar("600487",day,new BigDecimal("10"),new BigDecimal("12"),new BigDecimal("9"),

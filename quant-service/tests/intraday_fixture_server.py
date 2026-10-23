@@ -9,6 +9,7 @@ import pandas as pd
 from app.main import app
 from app.api.market import get_provider
 from app.api.intraday import minute_clock
+from app.providers.minute_failure import MinuteDataError
 
 NOW = datetime.fromisoformat(os.environ["INTRADAY_FIXTURE_NOW"])
 
@@ -17,6 +18,8 @@ class FixedMinutes:
     def _call(self, method, **kwargs):
         assert method == "stock_zh_a_hist_min_em"
         symbol = kwargs["symbol"]
+        if symbol == "999625":
+            raise MinuteDataError("DATA_TIME_ORDER", row=20, field="time")
         if symbol == "999623":
             raise RuntimeError("fixed provider failure")
         rows = []

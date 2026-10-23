@@ -1,0 +1,31 @@
+{
+  "status": "STAGED_NOT_DEPLOYED",
+  "release": "D:\\lyh\\code\\AIDemo\\stockSentinel\\.runtime\\release-scan-coverage-20261023-120304",
+  "jarSha256": "e89e2533fea37c65291018ccc8649fbf854c561be6f5f366acdfe379e118aec7",
+  "tests": {
+    "javaUnitPassed": 171,
+    "pythonPassed": 146,
+    "isolatedDatabasePassed": 146,
+    "simulationPassed": 1,
+    "databaseSimulationSkippedInOrdinaryRun": 1
+  },
+  "evidence": {
+    "java": ".runtime/coverage-unit.log",
+    "python": ".runtime/coverage-python.log",
+    "database": ".runtime/coverage-native.log",
+    "postman": ".runtime/coverage-postman-20261023-115718-551280/result.json",
+    "package": ".runtime/coverage-package.log"
+  },
+  "liveUntouched": {
+    "javaPid": 111888,
+    "pythonPid": 95144,
+    "schemaVersion": "22",
+    "positions": 2
+  },
+  "deploymentRequiresApproval": {
+    "javaRestart": true,
+    "migration": "V23",
+    "pythonRestart": false,
+    "activeTestPush": false
+  }
+}

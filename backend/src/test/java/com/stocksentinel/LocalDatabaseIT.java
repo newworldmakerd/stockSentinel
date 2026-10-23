@@ -49,7 +49,7 @@ class LocalDatabaseIT {
         assertEquals(131,jdbc.queryForObject("SELECT count(*) FROM market_daily_bar WHERE symbol='999999'",Integer.class));
         writer.bars(List.of(bar(LocalDate.of(2025,1,1),Adjustment.QFQ,"11.5")));
         assertEquals(0,new BigDecimal("11.5").compareTo(jdbc.queryForObject("SELECT close_price FROM market_daily_bar WHERE symbol='999999' AND adjustment='QFQ' AND trade_date='2025-01-01'",BigDecimal.class)));
-        assertEquals(9,jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success",Integer.class));
+        assertEquals(13,jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success",Integer.class));
     }
     @Test void stockSyncPreservesBusinessStatusAndOptionalMetadata() {
         jdbc.update("INSERT INTO stock_info(symbol,name,exchange,industry,status) VALUES ('999999','old','SH','fixture-industry','SUSPENDED')");

@@ -7,6 +7,12 @@ spring:
     password: ${POSTGRES_PASSWORD}
   flyway:
     enabled: true
+chips:
+  enabled: ${CHIPS_ENABLED:false}
+  schedule-enabled: ${CHIPS_SCHEDULE_ENABLED:false}
+  concentration90: ${CHIPS_CONCENTRATION90:0.10}
+  concentration70: ${CHIPS_CONCENTRATION70:0.06}
+  minimum-amount: ${CHIPS_MINIMUM_AMOUNT:100000000}
 management:
   endpoints:
     web:
@@ -28,24 +34,51 @@ market:
   python-url: ${PYTHON_URL:http://127.0.0.1:8000}
   minute-timeout-seconds: ${MINUTE_HTTP_TIMEOUT_SECONDS:25}
 
+trend:
+  enabled: ${TREND_ENABLED:false}
+  schedule-enabled: ${TREND_SCHEDULE_ENABLED:false}
+  min-amount: ${TREND_MIN_AMOUNT:50000000}
+  risk-rate: ${TREND_RISK_RATE:0.005}
+  stock-cap: ${TREND_STOCK_CAP:0.10}
+  portfolio-cap: ${TREND_PORTFOLIO_CAP:0.80}
+  initial-atr: ${TREND_INITIAL_ATR:2}
+  trailing-atr: ${TREND_TRAILING_ATR:3}
+
 wecom:
   enabled: ${WECOM_ENABLED:false}
   mode: ${WECOM_MODE:SMART_BOT}
   bot-id: ${WECOM_BOT_ID:}
   bot-secret: ${WECOM_BOT_SECRET:}
   chat-id: ${WECOM_CHAT_ID:}
+  chat-ids: ${WECOM_CHAT_IDS:}
+  reconnect-cooldown-seconds: ${WECOM_RECONNECT_COOLDOWN_SECONDS:300}
   commands:
+    chat-enabled: ${WECOM_CHAT_ASSISTANT_ENABLED:false}
     enabled: ${WECOM_COMMANDS_ENABLED:false}
     base-url: ${WECOM_COMMANDS_BASE_URL:https://api.deepseek.com}
     model: ${WECOM_COMMANDS_MODEL:deepseek-flash}
+
+wecom-doc:
+  enabled: ${WECOM_DOC_ENABLED:false}
+  schedule-enabled: ${WECOM_DOC_SCHEDULE_ENABLED:false}
+  mcp-url: ${WECOM_DOC_MCP_URL:}
 
 jobs:
   enabled: ${JOBS_ENABLED:false}
   schedule-enabled: ${DAILY_SCAN_SCHEDULE_ENABLED:false}
 
 intraday:
+  scan-budget-seconds: ${INTRADAY_SCAN_BUDGET_SECONDS:55}
   enabled: ${INTRADAY_ENABLED:false}
   schedule-enabled: ${INTRADAY_SCHEDULE_ENABLED:false}
+  ma60-enabled: ${INTRADAY_MA60_ENABLED:false}
+  ma60-cooldown-minutes: ${INTRADAY_MA60_COOLDOWN_MINUTES:15}
+
+scan-alerts:
+  enabled: ${SCAN_ALERTS_ENABLED:false}
+  worker-enabled: ${SCAN_ALERTS_WORKER_ENABLED:true}
+  failure-threshold: ${SCAN_ALERTS_FAILURE_THRESHOLD:3}
+  cooldown-minutes: ${SCAN_ALERTS_COOLDOWN_MINUTES:15}
 
 reports:
   enabled: ${DAILY_REPORT_ENABLED:false}
@@ -54,3 +87,20 @@ reports:
 screening:
   enabled: ${SCREENING_ENABLED:false}
   llm-enabled: ${SCREENING_LLM_ENABLED:false}
+personal-price:
+  enabled: ${PERSONAL_PRICE_ENABLED:false}
+  worker-enabled: ${PERSONAL_PRICE_WORKER_ENABLED:true}
+t-observation:
+  enabled: ${T_OBSERVATION_ENABLED:false}
+pullback:
+  digest-enabled: ${PULLBACK_DIGEST_ENABLED:false}
+  digest-worker-enabled: ${PULLBACK_DIGEST_WORKER_ENABLED:true}
+  enabled: ${PULLBACK_ENABLED:false}
+  rise-pct: ${PULLBACK_RISE_PCT:15}
+  min-days: ${PULLBACK_MIN_DAYS:2}
+  max-days: ${PULLBACK_MAX_DAYS:5}
+  min-drawdown-pct: ${PULLBACK_MIN_DRAWDOWN_PCT:3}
+  max-drawdown-pct: ${PULLBACK_MAX_DRAWDOWN_PCT:8}
+  contraction: ${PULLBACK_CONTRACTION:0.70}
+  minute-multiplier: ${PULLBACK_MINUTE_MULTIPLIER:1.5}
+  pool-limit: ${PULLBACK_POOL_LIMIT:20}

@@ -28,12 +28,12 @@ def payload():
 
 @pytest.fixture
 def environment(monkeypatch):
-    state = {"payload": payload(), "status": 200, "calls": 0}
+    state = {"payload": payload(), "status": 200, "calls": 0, "statuses": []}
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             state["calls"] += 1
             raw = json.dumps(state["payload"]).encode()
-            self.send_response(state["status"])
+            self.send_response(state["statuses"].pop(0) if state["statuses"] else state["status"])
             self.end_headers()
             self.wfile.write(raw)
         def log_message(self, *_):
@@ -97,7 +97,7 @@ def test_invalid_backup_fails_closed(environment, kind):
     data = state["payload"]["data"]["sh600487"]
     if kind == "http_error": state["status"] = 503
     if kind == "wrong_symbol": data["qt"]["sh600487"][2] = "000731"
-    if kind == "future": data["m1"][-1][0] = "202610201022"
+    if kind == "future": data["m1"][-1][0] = "202610201023"
     if kind == "duplicate": data["m1"][-1][0] = data["m1"][-2][0]
     if kind == "bad_price": data["m1"][-1][3] = "1"
     if kind == "negative_volume": data["m1"][-1][5] = "-1"
@@ -115,6 +115,64 @@ def test_gap_disables_twenty_minute_rule_without_synthesizing_bars(environment):
     assert len(data["bars"]) == 20
     assert data["metrics"]["previous_twenty_high"] is None
     assert Decimal(data["metrics"]["five_minute_return_pct"]) == 2
+
+
+def test_transient_backup_failure_recovers_with_exactly_one_retry(environment):
+    state, _, client = environment
+    state["statuses"] = [503, 200]
+    result = client.get("/internal/market/minutes?symbol=600487")
+    assert result.status_code == 200
+    assert result.json()["source"] == "TENCENT_1M"
+    assert state["calls"] == 2
+
+
+@pytest.mark.parametrize("status,calls", [(503, 2), (429, 1), (403, 1)])
+def test_failure_retry_is_bounded_and_codes_are_sanitized(environment, status, calls, caplog):
+    state, _, client = environment
+    state["status"] = status
+    result = client.get("/internal/market/minutes?symbol=600487")
+    assert result.status_code == 502
+    assert state["calls"] == calls
+    assert result.headers["X-Minute-Primary-Error"] == "CONNECTION"
+    assert result.headers["X-Minute-Backup-Error"] == f"HTTP_{status}"
+    assert "simulated primary outage" not in caplog.text
+    assert "simulated primary outage" not in result.text
+
+
+def test_invalid_backup_is_not_retried(environment):
+    state, _, client = environment
+    state["payload"]["data"]["sh600487"]["m1"][-1][3] = "1"
+    result = client.get("/internal/market/minutes?symbol=600487")
+    assert result.status_code == 502
+    assert state["calls"] == 1
+    assert result.headers["X-Minute-Backup-Error"] == "DATA_OHLC"
+
+
+def test_retry_is_skipped_when_request_budget_is_exhausted(environment, monkeypatch):
+    state, _, client = environment
+    state["status"] = 503
+    original = TencentMinuteProvider.minutes
+    def exhausted(self, symbol, day, **kwargs):
+        return original(self, symbol, day, retry_deadline=0)
+    monkeypatch.setattr(TencentMinuteProvider, "minutes", exhausted)
+    assert client.get("/internal/market/minutes?symbol=600487").status_code == 502
+    assert state["calls"] == 1
+
+
+@pytest.mark.parametrize("failure", [requests.ConnectionError, requests.Timeout])
+def test_transient_transport_error_is_retried_once(environment, monkeypatch, failure):
+    state, _, client = environment
+    original = requests.get
+    attempts = []
+    def flaky(url, **kwargs):
+        attempts.append(url)
+        if len(attempts) == 1:
+            raise failure("private connection detail")
+        return original(url, **kwargs)
+    monkeypatch.setattr(requests, "get", flaky)
+    assert client.get("/internal/market/minutes?symbol=600487").status_code == 200
+    assert len(attempts) == 2
+    assert state["calls"] == 1
 
 
 @pytest.mark.parametrize("kind", ["stale", "invalid"])

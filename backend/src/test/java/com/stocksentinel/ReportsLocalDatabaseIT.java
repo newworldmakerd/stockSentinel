@@ -30,7 +30,8 @@ import static org.mockito.Mockito.*;
 
 @SpringBootTest(properties={"wecom.enabled=true","wecom.bot-id=test-bot","wecom.bot-secret=test-only-credential","wecom.chat-id=test-group",
     "wecom.worker-enabled=false","reports.enabled=true","reports.schedule-enabled=false","reports.worker-enabled=false",
-    "screening.enabled=true","screening.llm-enabled=false","llm.enabled=false"})
+    "pullback.enabled=true","stocksentinel.lock-namespace=76302","screening.enabled=true","screening.llm-enabled=false","llm.enabled=false"})
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 @Import(ReportsLocalDatabaseIT.TimeConfig.class)
 @EnabledIfEnvironmentVariable(named="STOCKSENTINEL_TEST_DB_URL",matches="jdbc:postgresql:.*")
 class ReportsLocalDatabaseIT {
@@ -54,6 +55,8 @@ class ReportsLocalDatabaseIT {
         r.add("spring.datasource.username",()->System.getenv("STOCKSENTINEL_TEST_DB_USER"));r.add("spring.datasource.password",()->System.getenv("STOCKSENTINEL_TEST_DB_PASSWORD"));r.add("spring.flyway.default-schema",()->SCHEMA);
     }
     @AfterAll static void cleanup()throws Exception {server.stop(0);if(!SCHEMA.matches("stocksentinel_reports_[a-f0-9]{32}"))throw new IllegalStateException();try(var c=connection();var s=c.createStatement()){s.execute("DROP SCHEMA \""+SCHEMA+"\" CASCADE");}}
+    @Autowired ReportResendService resends;
+    @Autowired SelectionExplanationService explanations;@Autowired org.springframework.test.web.servlet.MockMvc http;
     @Autowired JdbcTemplate db;@Autowired ScreeningService screens;@Autowired DailyReportService reports;@Autowired ReportMapper mapper;
     @MockitoBean SmartBotClient bot;@MockitoBean ScreenModel model;@MockitoBean MarketCollectionService collection;
     @MockitoBean IndicatorService indicators;@MockitoBean StrategyContextReader contexts;
@@ -84,6 +87,46 @@ class ReportsLocalDatabaseIT {
         verify(model,times(1)).explain(contains("BUY_WATCH"));assertEquals(1,db.queryForObject("SELECT count(*) FROM stock_watchlist",Integer.class));
         assertEquals(0,db.queryForObject("SELECT count(*) FROM signal_event",Integer.class));
         String markdown=reports.render(TODAY);assertTrue(markdown.contains("2026-10-19"));assertTrue(markdown.contains("模型解释"));assertTrue(markdown.getBytes(StandardCharsets.UTF_8).length<=3900);
+    }
+    @Test void explanationUsesStoredSwingAndReadOnlyPullbackWithoutExternalFetch()throws Exception {
+        screens.scan();clearInvocations(collection,indicators,model);
+        var value=new ObjectMapper().findAndRegisterModules().valueToTree(explanations.explain("999620",TODAY));
+        assertTrue(value.at("/swing/matched").asBoolean());assertEquals(4,value.at("/swing/rules").size());
+        assertEquals(ASOF,explanations.explain("999620",TODAY).get("dataDate"));assertEquals("RULE_NOT_MATCHED",value.at("/pullback/status").asText());
+        assertEquals("0",value.at("/pullback/rules/0/observedValue").asText());verifyNoInteractions(collection,indicators,model);
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/screening/explanations/999622").param("tradeDate",TODAY.toString()))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("LOW_LIQUIDITY"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.swing").doesNotExist());
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/screening/explanations/999620").param("tradeDate",TODAY.plusDays(1).toString()))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM pullback_candidate",Integer.class));
+    }
+    @Test void savedPullbackSnapshotRankingAndTriggeredStateAreExplained()throws Exception {
+        screens.scan();var settings=PullbackRulesTest.parameters();
+        String snapshot=new ObjectMapper().findAndRegisterModules().writeValueAsString(Map.of("parameters",settings,"rules",List.of(Map.of("passed",true,"ruleCode","PREVIOUS_RISE","observedValue","32.53%","thresholdValue","15%"))));
+        db.update("INSERT INTO pullback_candidate(symbol,data_date,version,average_amount,reference_high,details) VALUES(?,?,?,?,?,CAST(? AS jsonb))","999620",ASOF,settings.version(),100000000,new BigDecimal("6.51"),snapshot);
+        var json=new ObjectMapper().findAndRegisterModules();var value=json.valueToTree(explanations.explain("999620",TODAY));
+        assertEquals("SAVED_CANDIDATE_SNAPSHOT",value.at("/pullback/basis").asText());assertTrue(value.at("/pullback/inTopFive").asBoolean());assertEquals(1,value.at("/pullback/rank").asInt());
+        assertEquals("32.53%",value.at("/pullback/rules/0/observedValue").asText());
+        db.update("UPDATE pullback_candidate SET triggered_at=now() WHERE symbol='999620'");value=json.valueToTree(explanations.explain("999620",TODAY));
+        assertEquals("ALREADY_STRENGTHENED",value.at("/pullback/status").asText());assertFalse(value.at("/pullback/inTopFive").asBoolean());
+    }
+    @Test void manualResendKeepsOriginalReceiptAndIsIdempotent() {
+        screens.scan();reports.enqueue(TODAY);assertTrue(reports.deliverOne());var old=mapper.report(TODAY,reports.destinationHash());
+        String request=UUID.randomUUID().toString();resends.enqueue(request);resends.enqueue(request);
+        assertEquals(1,db.queryForObject("SELECT count(*) FROM notify_record WHERE message_type='REPORT_RESEND'",Integer.class));
+        assertTrue(resends.dispatchOne());assertFalse(resends.dispatchOne());
+        assertEquals("SUCCESS",db.queryForObject("SELECT status FROM notify_record WHERE message_type='REPORT_RESEND'",String.class));
+        assertEquals(old.id,mapper.report(TODAY,reports.destinationHash()).id);assertEquals("SUCCESS",mapper.report(TODAY,reports.destinationHash()).status);
+        assertTrue(db.queryForObject("SELECT payload FROM notify_record WHERE message_type='REPORT_RESEND'",String.class).contains("📊"));
+    }
+    @Test void manualResendUnknownIsNotAutomaticallyReplayed() {
+        String request=UUID.randomUUID().toString();resends.enqueue(request);
+        when(bot.send(anyString(),anyString())).thenReturn(new NotificationClient.Delivery(NotificationClient.Outcome.UNKNOWN,"NO_ACK"));
+        assertTrue(resends.dispatchOne());resends.enqueue(request);assertFalse(resends.dispatchOne());
+        assertEquals("UNKNOWN",db.queryForObject("SELECT status FROM notify_record WHERE message_type='REPORT_RESEND'",String.class));
+        verify(bot,times(1)).send(anyString(),anyString());
     }
     @Test void duplicateEnqueueAndDeliverySendOnlyOneReport() {
         screens.scan();var first=reports.enqueue(TODAY);assertEquals(first.id,reports.enqueue(TODAY).id);

@@ -48,25 +48,40 @@ def start():
     if version.returncode or 'version "21.' not in version.stderr:
         raise SystemExit("STOCKSENTINEL_JAVA_HOME must point to JDK21.")
     env = os.environ.copy()
-    for name in ("POSTGRES_PASSWORD", "WECOM_BOT_ID", "WECOM_BOT_SECRET", "WECOM_CHAT_ID", "DEEPSEEK_API_KEY"):
+    for name in ("POSTGRES_PASSWORD", "WECOM_BOT_ID", "WECOM_BOT_SECRET", "DEEPSEEK_API_KEY"):
         value = environment_value(name)
         if not value:
             raise SystemExit(f"Missing environment variable: {name}")
         env[name] = value
+    for name in ("WECOM_CHAT_ID", "WECOM_CHAT_IDS"):
+        value = environment_value(name)
+        if value:
+            env[name] = value
+    if not (env.get("WECOM_CHAT_ID", "").strip() or env.get("WECOM_CHAT_IDS", "").strip()):
+        raise SystemExit("Configure WECOM_CHAT_ID or WECOM_CHAT_IDS")
     env["LLM_API_KEY"] = env["DEEPSEEK_API_KEY"]
+    for name in ("WECOM_DOC_ENABLED", "WECOM_DOC_SCHEDULE_ENABLED", "WECOM_DOC_MCP_URL",
+                 "TREND_ENABLED", "TREND_SCHEDULE_ENABLED", "TREND_MIN_AMOUNT", "TREND_RISK_RATE",
+                 "TREND_STOCK_CAP", "TREND_PORTFOLIO_CAP", "TREND_INITIAL_ATR", "TREND_TRAILING_ATR"):
+        value = environment_value(name)
+        if value:
+            env[name] = value
     env.update(DB_URL="jdbc:postgresql://localhost:5432/myrag", POSTGRES_USER="myrag_user",
-               MARKET_ENABLED="true", INTRADAY_ENABLED="true", INTRADAY_SCHEDULE_ENABLED="true",
-               WECOM_ENABLED="true", WECOM_COMMANDS_ENABLED="true", WECOM_MODE="SMART_BOT",
+               MARKET_ENABLED="true", INTRADAY_ENABLED="true", INTRADAY_SCHEDULE_ENABLED="true", INTRADAY_MA60_ENABLED="true", SCAN_ALERTS_ENABLED="true",
+               WECOM_ENABLED="true", WECOM_COMMANDS_ENABLED="true", WECOM_CHAT_ASSISTANT_ENABLED="true", WECOM_MODE="SMART_BOT",
                WECOM_COMMANDS_BASE_URL="https://api.deepseek.com", WECOM_COMMANDS_MODEL="deepseek-flash",
-               LLM_ENABLED="false", JOBS_ENABLED="false", DAILY_SCAN_SCHEDULE_ENABLED="false",
-               PYTHON_URL="http://127.0.0.1:8000", MINUTE_HTTP_TIMEOUT_SECONDS="45",
-               DAILY_REPORT_ENABLED="true", DAILY_REPORT_SCHEDULE_ENABLED="true", SCREENING_ENABLED="true", SCREENING_LLM_ENABLED="true")
+               LLM_ENABLED="true", LLM_BASE_URL="https://api.deepseek.com", LLM_MODEL="deepseek-flash", JOBS_ENABLED="true", DAILY_SCAN_SCHEDULE_ENABLED="true", PERSONAL_PRICE_ENABLED="true", T_OBSERVATION_ENABLED="true",
+               PYTHON_URL="http://127.0.0.1:8000", MINUTE_HTTP_TIMEOUT_SECONDS="45", INTRADAY_SCAN_BUDGET_SECONDS="55", WECOM_RECONNECT_COOLDOWN_SECONDS="300",
+               DAILY_REPORT_ENABLED="true", DAILY_REPORT_SCHEDULE_ENABLED="true", SCREENING_ENABLED="true", PULLBACK_ENABLED="true", PULLBACK_DIGEST_ENABLED="true", SCREENING_LLM_ENABLED="true")
     # Python receives no business database/model/bot credentials.
     quant_env = {k: v for k, v in os.environ.items() if not any(word in k.upper() for word in
                  ("PASSWORD", "SECRET", "TOKEN", "API_KEY", "WECOM", "POSTGRES", "DB_URL", "LLM", "DEEPSEEK"))}
     quant_env["MARKET_PROVIDER_ENABLED"] = "true"
     quant_env["MARKET_MINUTE_MIRROR_ENABLED"] = "true"
     quant_env["MARKET_TENCENT_BACKUP_ENABLED"] = "true"
+    quant_env["MARKET_TENCENT_DAILY_BACKUP_ENABLED"] = "true"
+    quant_env["MARKET_RSI_SINA_BACKUP_ENABLED"] = "true"
+    quant_env["MARKET_RSI_BUDGET_SECONDS"] = "30"
     run = ROOT / ".runtime" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     run.mkdir(parents=True, exist_ok=False)
     processes = []

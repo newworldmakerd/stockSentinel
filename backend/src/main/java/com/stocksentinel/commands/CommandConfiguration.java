@@ -12,6 +12,16 @@ import org.springframework.web.client.RestClient;
 @Configuration(proxyBeanMethods=false)
 public class CommandConfiguration {
     @Bean
+    @ConditionalOnProperty(name="wecom.commands.chat-enabled",havingValue="true")
+    GroupAssistantClient groupAssistantClient(ObjectMapper json,@Value("${wecom.commands.enabled:false}") boolean commands,
+            @Value("${wecom.enabled:false}") boolean enabled,@Value("${llm.api-key:}") String key,
+            @Value("${wecom.commands.base-url:https://api.deepseek.com}") String base,@Value("${wecom.commands.model:deepseek-flash}") String model) {
+        URI uri=URI.create(base);
+        if(!commands||!enabled||key.isBlank()||model.isBlank()||!"https".equals(uri.getScheme())||uri.getHost()==null||uri.getUserInfo()!=null||uri.getQuery()!=null||uri.getFragment()!=null)throw new IllegalArgumentException("Group chat requires configured HTTPS model and smart bot");
+        var transport=new JdkClientHttpRequestFactory(java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());transport.setReadTimeout(Duration.ofSeconds(20));
+        return new DeepSeekGroupAssistantClient(RestClient.builder().baseUrl(base).requestFactory(transport).defaultHeader("Authorization","Bearer "+key).build(),json,model);
+    }
+    @Bean
     @ConditionalOnProperty(name="wecom.commands.enabled",havingValue="true")
     MonitorIntentClient monitorIntentClient(ObjectMapper json,
             @Value("${wecom.enabled:false}") boolean enabled,

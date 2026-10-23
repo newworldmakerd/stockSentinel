@@ -19,13 +19,15 @@ public interface NotificationMapper {
             AND status IN ('PENDING','RETRY') AND attempts < 3
             AND idempotency_key='smart-bot:' || signal_id || ':' || #{destination}
             AND (next_retry_at IS NULL OR next_retry_at <= now())
+            AND (NOT #{waitForAdvice} OR EXISTS(SELECT 1 FROM signal_advice a WHERE a.signal_id=notify_record.signal_id)
+                 OR created_at <= now()-interval '35 seconds')
           ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1
         ) UPDATE notify_record n SET status='SENDING',attempts=attempts+1,claim_token=#{token},
           lease_until=now()+interval '120 seconds',next_retry_at=NULL
           FROM candidate c WHERE n.id=c.id RETURNING n.*
         """,affectData=true)
     @Options(flushCache=Options.FlushCachePolicy.TRUE,useCache=false)
-    NotificationRow claim(@Param("token") String token,@Param("destination") String destination);
+    NotificationRow claim(@Param("token") String token,@Param("destination") String destination,@Param("waitForAdvice") boolean waitForAdvice);
     @Update("UPDATE notify_record SET payload=#{payload} WHERE id=#{id} AND status='SENDING' AND claim_token=#{token}")
     int payload(@Param("id") long id,@Param("token") String token,@Param("payload") String payload);
     @Update("""
@@ -39,4 +41,6 @@ public interface NotificationMapper {
         @Param("error") String error,@Param("delay") int delay);
     @Select("SELECT advice::text FROM signal_advice WHERE signal_id=#{id} AND status='SUCCESS' ORDER BY created_at DESC,id DESC LIMIT 1")
     String advice(long id);
+    @Select("SELECT status FROM signal_advice WHERE signal_id=#{id} ORDER BY created_at DESC,id DESC LIMIT 1")
+    String adviceStatus(long id);
 }

@@ -1,0 +1,11 @@
+package com.stocksentinel;
+import com.fasterxml.jackson.databind.*;import com.stocksentinel.trend.*;import com.stocksentinel.commands.TrendIntent;
+import java.math.*;import org.junit.jupiter.api.Test;import static org.junit.jupiter.api.Assertions.*;
+class TrendRulesTest {
+    TrendSettings s=new TrendSettings(true,false,new BigDecimal("50000000"),new BigDecimal("0.005"),new BigDecimal("0.1"),new BigDecimal("0.8"),new BigDecimal("2"),new BigDecimal("3"));
+    BigDecimal n(String s){return new BigDecimal(s);}
+    @Test void initialStopAndOnlyRisingTrailing(){assertEquals(0,n("47").compareTo(TrendRules.initial(n("50"),n("1.5"),s)));var stop=TrendRules.trail(n("47"),n("65"),n("2"),s);assertEquals(0,n("59").compareTo(stop));assertEquals(stop,TrendRules.trail(stop,n("65"),n("10"),s));}
+    @Test void riskBudgetAndCapitalCapsUseConservativeLots(){assertEquals(100,TrendRules.shares(n("100000"),n("0"),n("0"),n("50"),n("47"),"600487",s));assertEquals(0,TrendRules.shares(n("100000"),n("80000"),n("0"),n("50"),n("47"),"600487",s));assertEquals(0,TrendRules.shares(n("100000"),n("9000"),n("9000"),n("50"),n("47"),"600487",s));assertEquals(0,TrendRules.shares(n("100000"),n("0"),n("0"),n("50"),n("47"),"688001",s));}
+    @Test void equalityIsNeitherBreakoutNorStrongMarket()throws Exception{var json=new ObjectMapper();var m=json.readTree("{\"close\":52,\"ma60\":48,\"ma120\":44,\"ma60_change20\":0.01,\"raw_factor\":1,\"previous_twenty_high\":52,\"recent_twenty_high\":53}");assertTrue(TrendRules.trend(m));assertFalse(TrendRules.buy(m,n("52"),n("50000000"),false,s));assertTrue(TrendRules.buy(m,n("52.01"),n("50000000"),false,s));assertFalse(TrendRules.market(json.readTree("{\"close\":200,\"ma200\":200}")));assertFalse(TrendRules.market(null));}
+    @Test void commandsRequireLiteralIdentityBoundNumbers(){assertTrue(TrendIntent.buy("记录四川美丰趋势买入100股，成交价7.8元","四川美丰",100,n("7.8")));for(String prefix:new String[]{"不要","如果","请问是否"})assertFalse(TrendIntent.buy(prefix+"记录四川美丰趋势买入100股，成交价7.8元","四川美丰",100,n("7.8")));assertFalse(TrendIntent.buy("记录四川美丰趋势买入100股，成交价7.8元","四川美丰",200,n("7.8")));assertTrue(TrendIntent.account("设置趋势账户资产100000元，股票市值20000元",n("100000"),n("20000")));assertTrue(TrendIntent.sell("记录趋势批次12卖出100股，成交价8元",12,100,n("8")));assertFalse(TrendIntent.plan("计划价8元",n("8"),BigDecimal.ZERO));}
+}

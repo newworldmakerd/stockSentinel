@@ -22,6 +22,9 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 @Service
 public class ScreeningService implements DisposableBean {
+    @Value("${stocksentinel.lock-namespace:76301}") private int lockNamespace;
+    @org.springframework.beans.factory.annotation.Autowired private com.stocksentinel.pullback.PullbackService pullback;
+    @org.springframework.beans.factory.annotation.Autowired private com.stocksentinel.monitoring.ScanRecoveryService recovery;
     private final ReportMapper mapper;private final MarketCollectionService market;private final IndicatorService indicators;
     private final StrategyContextReader contexts;private final SwingTrendStrategy engine;private final StrategyMapper strategies;
     private final TradingDatePolicy dates;private final Clock clock;private final ObjectMapper json;
@@ -52,6 +55,27 @@ public class ScreeningService implements DisposableBean {
         } catch(Exception unavailable) { /* Keep prior snapshot with its real timestamp. */ }
         finally {overviewActive.set(false);}});
     }
+    public boolean retry() {
+        if(!enabled || active.get() || !"OPEN".equals(dates.calendarStatus(dates.today())))return false;
+        try(var c=sources.getObject().getConnection()) {
+            try(var s=c.createStatement();var rs=s.executeQuery("SELECT pg_try_advisory_lock("+lockNamespace+",3)")){rs.next();if(!rs.getBoolean(1))return false;}
+            try {if(mapper.reopen(dates.today())!=1)return false;mapper.retryItems(dates.today());}
+            finally {try(var s=c.createStatement()){s.execute("SELECT pg_advisory_unlock("+lockNamespace+",3)");}}
+        }catch(Exception unavailable){return false;}
+        return start();
+    }
+    public Object retrySelected(com.stocksentinel.monitoring.ScanRecoveryService.Request request) {
+        if(!enabled)throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,"SCREENING_DISABLED");
+        if(!active.compareAndSet(false,true))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"SCREENING_BUSY");
+        Object result;
+        try(var c=sources.getObject().getConnection()) {
+            try(var s=c.createStatement();var rs=s.executeQuery("SELECT pg_try_advisory_lock("+lockNamespace+",3)")){rs.next();if(!rs.getBoolean(1))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"SCREENING_BUSY");}
+            try {result=recovery.queue(request);}
+            finally {try(var s=c.createStatement()){s.execute("SELECT pg_advisory_unlock("+lockNamespace+",3)");}}
+        }catch(java.sql.SQLException unavailable){throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,"SCREENING_DATABASE_UNAVAILABLE");}
+        finally {active.set(false);}
+        start();return result;
+    }
     void storeOverview(LocalDate date,List<StockInfo> universe) throws Exception {
         var keys=universe.stream().map(s->("SH".equals(s.exchange) ? "sh" : "sz")+s.symbol).toList();
         if(keys.isEmpty()) return;
@@ -74,7 +98,7 @@ public class ScreeningService implements DisposableBean {
     public void scan() {
         LocalDate today=dates.today();
         try(var connection=sources.getObject().getConnection()) {
-            try(var s=connection.createStatement();var rs=s.executeQuery("SELECT pg_try_advisory_lock(76301,3)")) {rs.next();if(!rs.getBoolean(1)) return;}
+            try(var s=connection.createStatement();var rs=s.executeQuery("SELECT pg_try_advisory_lock("+lockNamespace+",3)")) {rs.next();if(!rs.getBoolean(1)) return;}
             try {
                 var existing=mapper.run(today);if(existing!=null && !"RUNNING".equals(existing.status)) return;
                 LocalDate asOf=existing==null ? (dates.allowToday(today) ? today : mapper.previousOpen(today)) : existing.asOf;
@@ -94,22 +118,24 @@ public class ScreeningService implements DisposableBean {
                     if(quote==null || !OffsetDateTime.parse(quote.path("quoted_at").asText()).atZoneSameInstant(TradingDatePolicy.ZONE).toLocalDate().equals(today)
                             || new BigDecimal(quote.path("volume").asText()).signum()==0) {item(today,stock,"EXCLUDED","NO_CURRENT_TRADES",null,null);continue;}
                     if(quote.path("name").asText().toUpperCase(Locale.ROOT).contains("ST")) {item(today,stock,"EXCLUDED","ST",null,null);continue;}
+                    String stage="RAW_HISTORY";
                     try {
                         if(mapper.history(stock.symbol,asOf)<121 || !asOf.equals(latestDate(stock.symbol,asOf)))
-                            market.collect(stock.symbol,asOf.minusYears(2),asOf,Adjustment.NONE);
+                            market.collect(stock.symbol,historyStart(stock.symbol,"NONE",asOf),asOf,Adjustment.NONE);
                         if(mapper.history(stock.symbol,asOf)<121) {item(today,stock,"EXCLUDED","HISTORY_UNDER_121",null,null);continue;}
                         BigDecimal average=mapper.average(stock.symbol,asOf);
                         if(average==null || average.compareTo(new BigDecimal("100000000"))<0) {item(today,stock,"EXCLUDED",average==null ? "AMOUNT_MISSING" : "LOW_LIQUIDITY",average,null);continue;}
-                        var state=strategies.state(stock.symbol,Adjustment.QFQ,asOf);
+                        stage="QFQ_HISTORY";var state=strategies.state(stock.symbol,Adjustment.QFQ,asOf);
                         if(state.total<121 || strategies.recent(stock.symbol,Adjustment.QFQ,asOf).stream().noneMatch(b->asOf.equals(b.tradeDate)))
-                            market.collect(stock.symbol,asOf.minusYears(2),asOf,Adjustment.QFQ);
-                        indicators.calculate(stock.symbol,Adjustment.QFQ,asOf);
-                        var prepared=contexts.read(stock.symbol,asOf,parameters);
-                        var decision=engine.evaluate(prepared.context()).stream().filter(d->d.signalType()==SwingTrendStrategy.SignalType.BUY_WATCH).findFirst().orElseThrow();
+                            market.collect(stock.symbol,historyStart(stock.symbol,"QFQ",asOf),asOf,Adjustment.QFQ);
+                        stage="INDICATOR";indicators.calculate(stock.symbol,Adjustment.QFQ,asOf);
+                        stage="CONTEXT";var prepared=contexts.read(stock.symbol,asOf,parameters);
+                        stage="PULLBACK";pullback.observe(stock.symbol,asOf,average,prepared.context());
+                        stage="RULES";var decision=engine.evaluate(prepared.context()).stream().filter(d->d.signalType()==SwingTrendStrategy.SignalType.BUY_WATCH).findFirst().orElseThrow();
                         String details=json.writeValueAsString(Map.of("asOf",asOf,"signalType",decision.signalType().name(),"strategyVersion",definition.version,"context",prepared.context(),"rules",decision.rules(),"average20Amount",average));
                         item(today,stock,decision.matched() ? "CANDIDATE" : "NO_MATCH",decision.matched() ? "BUY_WATCH" : "RULE_NOT_MATCHED",average,details);failures=0;
                     } catch(StrategyContextReader.Skipped insufficient) {item(today,stock,"EXCLUDED",insufficient.code,null,null);}
-                    catch(Exception failed) {item(today,stock,"FAILED","HISTORY_OR_CALCULATION_UNAVAILABLE",null,null);if(++failures>=10) {mapper.finishRun(today,"SOURCE_UNAVAILABLE");return;}}
+                    catch(Exception failed) {item(today,stock,"FAILED","SCREEN_"+stage+"_FAILED",null,null);if(++failures>=10) {mapper.finishRun(today,"SOURCE_UNAVAILABLE");return;}}
                 }
                 for(var candidate:mapper.candidates(today)) {
                     var model=models.getIfAvailable();if(model==null) break;
@@ -119,10 +145,11 @@ public class ScreeningService implements DisposableBean {
                 boolean failed=mapper.coverage(today).stream().anyMatch(r->"FAILED".equals(r.get("status")));
                 mapper.finishRun(today,failed ? "PARTIAL" : "COMPLETED");
             } catch(Exception failure) {if(mapper.run(today)!=null) mapper.finishRun(today,"FAILED");}
-            finally {try(var s=connection.createStatement()){s.execute("SELECT pg_advisory_unlock(76301,3)");}}
+            finally {try(var s=connection.createStatement()){s.execute("SELECT pg_advisory_unlock("+lockNamespace+",3)");}}
         } catch(Exception unavailable) { /* No raw network or credential exception logs. */ }
     }
     private LocalDate latestDate(String symbol,LocalDate asOf) {var b=strategies.reference(symbol,asOf);return b==null ? null : b.tradeDate;}
+    private LocalDate historyStart(String symbol,String adjustment,LocalDate asOf) {var old=mapper.earliest(symbol,adjustment);return old==null?asOf.minusYears(1):old;}
     private void item(LocalDate date,StockInfo stock,String status,String code,BigDecimal amount,String details) {mapper.item(date,stock.symbol,status,code,amount,details);}
     @Override public void destroy(){executor.shutdownNow();overviewExecutor.shutdownNow();}
 }

@@ -1,0 +1,7 @@
+simulation: trend-index-failover
+routing: path
+mocks:
+  - routeKey: east
+    path: ../mocks/trend-east/east.js
+  - routeKey: tencent
+    path: ../mocks/trend-tencent/tencent.js
